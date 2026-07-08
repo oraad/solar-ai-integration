@@ -13,14 +13,14 @@ action the optimizer applies on graceful shutdown or via the kill switch.
 
 ## Prerequisites
 
-- solar-ai-optimizer connected to Home Assistant (add-on or Docker) — see [Home Assistant setup](home-assistant-setup.md)
+- solar-ai-optimizer connected to Home Assistant (add-on or Docker) — see [Home Assistant setup](https://oraad.github.io/solar-ai-optimizer/home-assistant-setup/)
 - Inverter **write** entities mapped in Settings → Inverter (grid charge enable + max grid charge current)
 - Battery **Max grid charge current (A)** set in Settings → Battery
 
 ## Step 1 — Import the HA package (legacy)
 
 Enable packages in `configuration.yaml` if needed — see
-[Home Assistant setup → Enable packages](home-assistant-setup.md#enable-packages-in-configurationyaml).
+[Home Assistant setup → Enable packages](https://oraad.github.io/solar-ai-optimizer/home-assistant-setup/#enable-packages-in-configurationyaml).
 
 Copy [`examples/home-assistant/packages/solar-optimizer-failsafe.yaml`](https://github.com/oraad/solar-ai-optimizer/blob/main/examples/home-assistant/packages/solar-optimizer-failsafe.yaml) into your Home Assistant `config/packages/` directory (or merge into `configuration.yaml`).
 

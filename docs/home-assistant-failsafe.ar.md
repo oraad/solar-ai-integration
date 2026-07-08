@@ -13,7 +13,7 @@
 ## الخطوة 1 - استيراد حزمة HA
 
 تمكين الحزم في`configuration.yaml`إذا لزم الأمر - انظر
-[إعداد مساعد المنزل → تمكين الحزم](home-assistant-setup.md#enable-packages-in-configurationyaml).
+[إعداد مساعد المنزل → تمكين الحزم](https://oraad.github.io/solar-ai-optimizer/home-assistant-setup/#enable-packages-in-configurationyaml).
 
 ينسخ [`examples/home-assistant/packages/solar-optimizer-failsafe.yaml`](https://github.com/oraad/solar-ai-optimizer/blob/main/examples/home-assistant/packages/solar-optimizer-failsafe.yaml) في مساعد منزلك`config/packages/`الدليل (أو الدمج في`configuration.yaml`).
 

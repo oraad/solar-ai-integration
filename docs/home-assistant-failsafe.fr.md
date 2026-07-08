@@ -13,7 +13,7 @@ action que l'optimiseur applique lors d'un arrêt progressif ou via le kill swit
 ## Étape 1 — Importez le package HA
 
 Activer les packages dans`configuration.yaml`si nécessaire - voir
-[Configuration de Home Assistant → Activer les packages](home-assistant-setup.md#enable-packages-in-configurationyaml).
+[Configuration de Home Assistant → Activer les packages](https://oraad.github.io/solar-ai-optimizer/home-assistant-setup/#enable-packages-in-configurationyaml).
 
 Copier [`examples/home-assistant/packages/solar-optimizer-failsafe.yaml`](https://github.com/oraad/solar-ai-optimizer/blob/main/examples/home-assistant/packages/solar-optimizer-failsafe.yaml) dans votre Home Assistant`config/packages/`répertoire (ou fusionner dans`configuration.yaml`).
 
