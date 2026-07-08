@@ -1,0 +1,43 @@
+name: Bug report
+description: Report a problem with the Solar AI Optimizer HACS integration
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the bug and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Integration version
+      placeholder: "0.1.0"
+  - type: input
+    id: app_version
+    attributes:
+      label: Solar app version
+      placeholder: "0.6.11"
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: Solar deployment
+      options:
+        - Docker / Compose
+        - Home Assistant add-on
+        - Proxmox / container
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Paste log excerpts (redact tokens and secrets).

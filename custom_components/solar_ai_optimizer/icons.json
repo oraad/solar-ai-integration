@@ -1,0 +1,25 @@
+{
+  "entity": {
+    "sensor": {
+      "version": {
+        "default": "mdi:information-outline"
+      },
+      "last_pulse": {
+        "default": "mdi:heart-pulse"
+      },
+      "install_visibility": {
+        "default": "mdi:identifier"
+      }
+    },
+    "binary_sensor": {
+      "healthy": {
+        "default": "mdi:lan-check"
+      }
+    },
+    "update": {
+      "firmware": {
+        "default": "mdi:package-up"
+      }
+    }
+  }
+}

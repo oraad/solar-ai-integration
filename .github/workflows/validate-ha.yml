@@ -1,0 +1,107 @@
+name: Validate HA integration
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 4 * * 1"
+  push:
+    branches: [main, master]
+  pull_request:
+
+concurrency:
+  group: validate-ha-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  hassfest:
+    name: Hassfest validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v7
+
+      - name: Run hassfest validation
+        uses: home-assistant/actions/hassfest@master
+
+  hacs:
+    name: HACS validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v7
+
+      - name: Run HACS validation
+        uses: hacs/action@22.5.0
+        with:
+          category: integration
+          ignore: brands
+
+  test:
+    name: Integration tests
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - name: Structural checks
+        run: |
+          test -f custom_components/solar_ai_optimizer/manifest.json
+          test -f custom_components/solar_ai_optimizer/config_flow.py
+          test -f custom_components/solar_ai_optimizer/__init__.py
+          test -f custom_components/__init__.py
+          test -f hacs.json
+          python -c "import json; json.load(open('custom_components/solar_ai_optimizer/manifest.json'))"
+          python -c "import json; d=json.load(open('hacs.json')); assert d['homeassistant']=='2026.7.0', d"
+          python -c "from pathlib import Path; import json; version = Path('VERSION').read_text(encoding='utf-8').strip(); manifest = json.loads(Path('custom_components/solar_ai_optimizer/manifest.json').read_text(encoding='utf-8')); assert manifest['version'] == version, (manifest['version'], version); print('manifest version ok', version)"
+          python scripts/sync-version.py --check
+
+      - name: Install PHCC and run tests
+        run: |
+          python -m venv .venv-ha
+          .venv-ha/bin/pip install --upgrade pip
+          .venv-ha/bin/pip install pytest pytest-asyncio pytest-cov mypy \
+            "pytest-homeassistant-custom-component==0.13.345"
+          PYTHONPATH=. .venv-ha/bin/pytest custom_components/solar_ai_optimizer/tests -q \
+            -c custom_components/solar_ai_optimizer/tests/pytest.ini \
+            --cov=custom_components/solar_ai_optimizer \
+            --cov-config=custom_components/solar_ai_optimizer/tests/.coveragerc \
+            --cov-report=term-missing \
+            --cov-fail-under=95
+
+      - name: Mypy strict (integration package)
+        run: |
+          .venv-ha/bin/mypy \
+            --config-file custom_components/solar_ai_optimizer/mypy.ini \
+            custom_components/solar_ai_optimizer/*.py
+
+  package-ha-zip:
+    name: Package integration zip (dry-run)
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - name: Install zip
+        run: sudo apt-get update && sudo apt-get install -y zip unzip
+
+      - name: Build solar_ai_optimizer.zip
+        run: bash scripts/package-ha-integration.sh
+
+      - name: List zip contents
+        run: unzip -l dist/solar_ai_optimizer.zip | head -n 50
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: solar_ai_optimizer-zip
+          path: dist/solar_ai_optimizer.zip
+          retention-days: 7

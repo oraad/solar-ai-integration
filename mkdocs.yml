@@ -1,0 +1,72 @@
+site_name: Solar AI Optimizer — Home Assistant Integration
+site_url: https://oraad.github.io/solar-ai-integration/
+repo_url: https://github.com/oraad/solar-ai-integration
+repo_name: oraad/solar-ai-integration
+edit_uri: edit/main/docs/
+
+validation:
+  links:
+    not_found: ignore
+    anchors: warn
+    unrecognized_links: ignore
+
+theme:
+  name: material
+  language: en
+  palette:
+    - scheme: default
+      primary: amber
+      accent: orange
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: amber
+      accent: orange
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - content.code.copy
+
+plugins:
+  - search
+  - i18n:
+      docs_structure: suffix
+      reconfigure_material: true
+      reconfigure_search: true
+      fallback_to_default: false
+      languages:
+        - locale: en
+          name: English
+          default: true
+          build: true
+        - locale: fr
+          name: Français
+          build: true
+          nav_translations:
+            Home: Accueil
+            Integration: Intégration Home Assistant
+            Fail-safe: Sécurité Home Assistant
+        - locale: ar
+          name: العربية
+          build: true
+          nav_translations:
+            Home: الرئيسية
+            Integration: تكامل Home Assistant
+            Fail-safe: الحماية الاحتياطية لـ Home Assistant
+
+nav:
+  - Home: index.md
+  - Integration: home-assistant-integration.md
+  - Fail-safe: home-assistant-failsafe.md
+
+markdown_extensions:
+  - attr_list
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences

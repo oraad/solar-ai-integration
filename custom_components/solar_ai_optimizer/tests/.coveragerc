@@ -1,0 +1,11 @@
+[run]
+source = custom_components/solar_ai_optimizer
+omit =
+    */tests/*
+    */__pycache__/*
+
+[report]
+exclude_lines =
+    pragma: no cover
+    if TYPE_CHECKING:
+    if typing.TYPE_CHECKING:

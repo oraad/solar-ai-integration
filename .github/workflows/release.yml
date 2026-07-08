@@ -1,0 +1,64 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Verify release tag matches VERSION
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          version="$(tr -d '\r\n' < VERSION)"
+          test "$version" = "$tag"
+          manifest="$(python -c "import json; print(json.load(open('custom_components/solar_ai_optimizer/manifest.json'))['version'])")"
+          test "$manifest" = "$version"
+          echo "tag=$tag version=$version manifest=$manifest"
+
+      - name: Package HA integration zip
+        run: |
+          sudo apt-get update && sudo apt-get install -y zip unzip
+          bash scripts/package-ha-integration.sh
+          unzip -l dist/solar_ai_optimizer.zip | head -n 40
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - name: Prepare release notes from CHANGELOG
+        run: |
+          bash scripts/check-python.sh
+          tag="${GITHUB_REF_NAME#v}"
+          if python scripts/changelog-excerpt.py --version "$tag" > release-notes.md; then
+            echo "Using CHANGELOG excerpt for v$tag"
+          else
+            echo "No CHANGELOG section for v$tag — release will use auto-generated notes only"
+            rm -f release-notes.md
+          fi
+
+      - name: Determine prerelease
+        id: prerelease
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          if [[ "$tag" == *-* ]]; then
+            echo "value=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: softprops/action-gh-release@v3
+        with:
+          prerelease: ${{ steps.prerelease.outputs.value == 'true' }}
+          generate_release_notes: true
+          body_path: release-notes.md
+          files: |
+            dist/solar_ai_optimizer.zip
+          fail_on_unmatched_files: true

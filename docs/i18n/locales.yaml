@@ -1,0 +1,14 @@
+default: en
+locales:
+  - id: en
+    name: English
+    dir: ltr
+    translate: false
+  - id: fr
+    name: Français
+    dir: ltr
+    translate: true
+  - id: ar
+    name: العربية
+    dir: rtl
+    translate: true

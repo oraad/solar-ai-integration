@@ -1,0 +1,17 @@
+# Changelog
+
+All notable changes to this project are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [0.1.0] - 2026-07-08
+
+### Integration
+
+- Initial release in dedicated `oraad/solar-ai-integration` repository
+- HACS IQS Platinum-shaped checklist, diagnostics, reconfigure, repairs, validate-ha CI, zip packaging
+- Pairing code flow, fail-safe watchdog, Update entity (Docker/Proxmox when `can_apply`)
+- Requires Solar AI Optimizer app **0.6.9+** (HTTP API); app and integration versions are independent
