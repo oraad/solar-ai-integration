@@ -35,10 +35,15 @@ The integration talks to Solar over HTTP; pair it with an app release **at or ab
 
 ## Install (HACS)
 
+Click to add this repository to HACS (requires [My Home Assistant](https://my.home-assistant.io/) configured in your browser):
+
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=oraad&repository=solar-ai-integration&category=integration)
+
+**Or manually:**
+
 1. HACS → Integrations → Custom repositories → add  
    `https://github.com/oraad/solar-ai-integration` as **Integration** (not Add-on).
 2. Install **Solar AI Optimizer**, then restart Home Assistant.
-3. Settings → Devices & services → Add integration → **Solar AI Optimizer**.
 
 HACS installs from GitHub Releases using `solar_ai_optimizer.zip` (`zip_release` in `hacs.json`). Use the HACS version picker — stable by default; betas selectable.
 
@@ -68,6 +73,12 @@ Or download **`solar_ai_optimizer.zip`** from the [integration GitHub Releases](
 \* Provide a pairing code **or** an API token.
 
 ## Pair Solar with Home Assistant
+
+Start the config flow:
+
+[![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=solar_ai_optimizer)
+
+**Or:** Settings → Devices & services → Add integration → **Solar AI Optimizer**
 
 1. In the Solar dashboard (admin), open **Settings → Home Assistant connection** and generate a pairing code (or call `POST /api/pair/start` as admin).
 2. Note the one-time code (`XXXX-XXXX`, valid ~10 minutes).
@@ -174,5 +185,5 @@ The Update entity always appears. **Install** is offered only when Solar reports
 
 - [Solar app setup](https://oraad.github.io/solar-ai-optimizer/home-assistant-setup/)
 - [Fail-safe (legacy package)](home-assistant-failsafe.md)
-- [Roles and access](ingress-auth.md)
-- [Security](security.md)
+- [Roles and access](https://oraad.github.io/solar-ai-optimizer/ingress-auth/)
+- [Security](https://oraad.github.io/solar-ai-optimizer/security/)
