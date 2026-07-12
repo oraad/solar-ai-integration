@@ -14,7 +14,9 @@ from .const import (
     CONF_GRID_CHARGE_ENABLE,
     CONF_MAX_GRID_CHARGE_CURRENT,
     CONF_STALE_SECONDS,
+    DEFAULT_MAX_GRID_CHARGE_A,
 )
+from .helpers import max_grid_charge_amps
 
 TO_REDACT = {CONF_ACCESS_TOKEN}
 
@@ -33,6 +35,9 @@ async def async_get_config_entry_diagnostics(
     number_id = options.get(CONF_MAX_GRID_CHARGE_CURRENT)
     failsafe_configured = bool(switch_id and number_id)
     failsafe_incomplete = bool(switch_id) ^ bool(number_id)
+    resolved_max_amps = max_grid_charge_amps(coordinator.data)
+    if resolved_max_amps is None:
+        resolved_max_amps = DEFAULT_MAX_GRID_CHARGE_A
 
     return {
         "entry": {
@@ -47,6 +52,7 @@ async def async_get_config_entry_diagnostics(
             "incomplete": failsafe_incomplete,
             "stale_seconds": options.get(CONF_STALE_SECONDS),
             "debounce_seconds": options.get(CONF_DEBOUNCE_SECONDS),
+            "max_grid_charge_amps": resolved_max_amps,
         },
         "coordinator": {
             "last_update_success": coordinator.last_update_success,

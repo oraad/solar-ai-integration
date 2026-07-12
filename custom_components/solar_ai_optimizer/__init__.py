@@ -8,6 +8,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
+from .activity import SolarAiActivityBridge
 from .api import SolarAiClient
 from .const import (
     CONF_ACCESS_TOKEN,
@@ -26,6 +27,7 @@ class SolarAiData:
 
     coordinator: SolarAiCoordinator
     client: SolarAiClient
+    activity: SolarAiActivityBridge
     failsafe: SolarFailsafeWatchdog | None = None
 
 
@@ -46,13 +48,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolarAiConfigEntry) -> b
     )
     await coordinator.async_config_entry_first_refresh()
 
-    data = SolarAiData(coordinator=coordinator, client=client)
+    data = SolarAiData(
+        coordinator=coordinator,
+        client=client,
+        activity=SolarAiActivityBridge(hass),
+    )
     entry.runtime_data = data
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     data.failsafe = await SolarFailsafeWatchdog.async_setup(
-        hass, entry, coordinator
+        hass, entry, coordinator, data.activity
     )
 
     switch_id, number_id = failsafe_entity_ids(entry.options, entry.data)

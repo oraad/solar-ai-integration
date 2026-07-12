@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-12
+
+### Added
+
+- Integration activity event entity for fail-safe activated / cleared
+- Logbook entries when fail-safe latches or clears
+- Activity bridge coordinating event, logbook, and fail-safe binary sensor
+
+### Changed
+
+- Fail-safe binary sensor driven via activity latch; docs cover Activity surface
+
 ## [0.1.0] - 2026-07-08
 
 ### Integration

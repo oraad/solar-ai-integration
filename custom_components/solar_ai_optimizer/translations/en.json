@@ -84,11 +84,22 @@
       },
       "install_visibility": {
         "name": "Install ID"
+      },
+      "max_grid_charge_current": {
+        "name": "Max grid charge current"
       }
     },
     "binary_sensor": {
       "healthy": {
         "name": "Healthy"
+      },
+      "failsafe_active": {
+        "name": "Fail-safe active"
+      }
+    },
+    "event": {
+      "integration_activity": {
+        "name": "Integration activity"
       }
     },
     "update": {

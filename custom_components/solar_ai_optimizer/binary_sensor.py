@@ -7,7 +7,8 @@ from homeassistant.components.binary_sensor import (
     BinarySensorEntity,
     BinarySensorEntityDescription,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.const import EntityCategory
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.util import dt as dt_util
 
@@ -25,6 +26,13 @@ HEALTHY_SENSOR = BinarySensorEntityDescription(
     device_class=BinarySensorDeviceClass.CONNECTIVITY,
 )
 
+FAILSAFE_ACTIVE_SENSOR = BinarySensorEntityDescription(
+    key="failsafe_active",
+    translation_key="failsafe_active",
+    entity_category=EntityCategory.DIAGNOSTIC,
+    icon="mdi:shield-alert",
+)
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -34,7 +42,14 @@ async def async_setup_entry(
     """Set up Solar AI binary sensors."""
     _ = hass
     coordinator = entry.runtime_data.coordinator
-    async_add_entities([SolarAiHealthyBinarySensor(coordinator, entry)])
+    failsafe_sensor = SolarAiFailsafeBinarySensor(coordinator, entry)
+    entry.runtime_data.activity.failsafe_sensor = failsafe_sensor
+    async_add_entities(
+        [
+            SolarAiHealthyBinarySensor(coordinator, entry),
+            failsafe_sensor,
+        ]
+    )
 
 
 class SolarAiHealthyBinarySensor(SolarAiEntity, BinarySensorEntity):
@@ -69,3 +84,30 @@ class SolarAiHealthyBinarySensor(SolarAiEntity, BinarySensorEntity):
             return False
         age = (dt_util.utcnow() - dt_util.as_utc(pulse)).total_seconds()
         return age < self._stale_seconds()
+
+
+class SolarAiFailsafeBinarySensor(SolarAiEntity, BinarySensorEntity):
+    """On when the fail-safe latch is active."""
+
+    entity_description = FAILSAFE_ACTIVE_SENSOR
+
+    def __init__(
+        self, coordinator: SolarAiCoordinator, entry: SolarAiConfigEntry
+    ) -> None:
+        super().__init__(coordinator)
+        self._entry = entry
+        self._latched = False
+        self._attr_unique_id = f"{entry.unique_id}_failsafe_active"
+
+    @property
+    def is_on(self) -> bool:
+        """Return True when fail-safe is latched."""
+        return self._latched
+
+    @callback
+    def async_set_latched(self, latched: bool) -> None:
+        """Update latch state and refresh entity."""
+        if self._latched == latched:
+            return
+        self._latched = latched
+        self.async_write_ha_state()

@@ -17,6 +17,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.solar_ai_optimizer.binary_sensor import (
     SolarAiHealthyBinarySensor,
 )
+from custom_components.solar_ai_optimizer.helpers import max_grid_charge_amps
 from custom_components.solar_ai_optimizer.update import SolarAiUpdateEntity
 
 
@@ -30,9 +31,16 @@ async def test_entities_created(
 
     assert hass.states.get("sensor.solar_ai_optimizer_version") is not None
     assert hass.states.get("sensor.solar_ai_optimizer_last_pulse") is not None
+    max_current = hass.states.get("sensor.solar_ai_optimizer_max_grid_charge_current")
+    assert max_current is not None
+    assert max_current.state == "40"
     healthy = hass.states.get("binary_sensor.solar_ai_optimizer_healthy")
     assert healthy is not None
     assert healthy.state in (STATE_ON, STATE_OFF)
+    failsafe_active = hass.states.get("binary_sensor.solar_ai_optimizer_failsafe_active")
+    assert failsafe_active is not None
+    assert failsafe_active.state == STATE_OFF
+    assert hass.states.get("event.solar_ai_optimizer_integration_activity") is not None
 
     registry = er.async_get(hass)
     entries = er.async_entries_for_config_entry(registry, mock_config_entry.entry_id)
@@ -42,6 +50,33 @@ async def test_entities_created(
     assert install_entries
     assert install_entries[0].disabled_by is not None
     assert install_entries[0].entity_category == EntityCategory.DIAGNOSTIC
+
+
+async def test_max_grid_charge_current_sensor_unavailable(
+    hass: HomeAssistant, mock_client: AsyncMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """Max grid charge sensor is unavailable when Solar config is missing."""
+    mock_client.get_config = AsyncMock(return_value=None)
+    mock_config_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    state = hass.states.get("sensor.solar_ai_optimizer_max_grid_charge_current")
+    assert state is not None
+    assert state.state == "unavailable"
+
+
+def test_max_grid_charge_amps_helper() -> None:
+    """Helper parses coordinator config and handles invalid values."""
+    assert max_grid_charge_amps(None) is None
+    assert max_grid_charge_amps({}) is None
+    assert max_grid_charge_amps({"config": {"grid_charge": {"max_grid_charge_a": 55}}}) == 55.0
+    assert (
+        max_grid_charge_amps(
+            {"config": {"grid_charge": {"max_grid_charge_a": "not-a-float"}}}
+        )
+        is None
+    )
 
 
 async def test_healthy_stale_and_bad_options(
