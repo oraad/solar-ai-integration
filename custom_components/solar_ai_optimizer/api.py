@@ -22,7 +22,7 @@ from .models import HealthData, SolarConfigData, UpdateData
 def resolve_access_token(entry_data: Mapping[str, Any]) -> tuple[str, str]:
     """Resolve bearer token and auth mode for a config entry.
 
-    Priority: stored ``sol_c_*`` (legacy/pairing) → ``SUPERVISOR_TOKEN`` when
+    Priority: stored pairing token (``sol_c_*``) → ``SUPERVISOR_TOKEN`` when
     ``auth_mode=supervisor`` → empty token with mode ``none``.
     """
     stored = str(entry_data.get(CONF_ACCESS_TOKEN) or "").strip()

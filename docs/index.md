@@ -2,7 +2,7 @@
 
 HACS custom integration for the [Solar AI Optimizer](https://github.com/oraad/solar-ai-optimizer) app.
 
-Requires **Home Assistant Core 2026.7.0+**, [HACS](https://hacs.xyz/), and a reachable Solar HTTP API (pairing code or API token).
+Requires **Home Assistant Core 2026.7.0+**, [HACS](https://hacs.xyz/), and a reachable Solar HTTP API (pairing code, or Supervisor discovery on HAOS).
 
 ## Quick start
 
