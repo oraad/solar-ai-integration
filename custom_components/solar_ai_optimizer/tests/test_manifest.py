@@ -64,5 +64,5 @@ def test_domain_and_platforms() -> None:
     )
 
     assert DOMAIN == "solar_ai_optimizer"
-    assert len(PLATFORMS) == 3
+    assert len(PLATFORMS) == 4
     assert DEFAULT_SCAN_INTERVAL.total_seconds() == 60

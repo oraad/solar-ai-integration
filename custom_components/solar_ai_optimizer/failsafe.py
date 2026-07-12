@@ -20,10 +20,11 @@ from .const import (
     DEFAULT_MAX_GRID_CHARGE_A,
     DEFAULT_STALE_SECONDS,
 )
-from .helpers import option_value, parse_pulse
+from .helpers import max_grid_charge_amps, option_value, parse_pulse
 
 if TYPE_CHECKING:
     from . import SolarAiConfigEntry
+    from .activity import SolarAiActivityBridge
     from .coordinator import SolarAiCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -45,13 +46,20 @@ class SolarFailsafeWatchdog:
         hass: HomeAssistant,
         entry: SolarAiConfigEntry,
         coordinator: SolarAiCoordinator,
+        activity: SolarAiActivityBridge,
     ) -> None:
         self.hass = hass
         self.entry = entry
         self.coordinator = coordinator
+        self._activity = activity
         self._unhealthy_since: datetime | None = None
         self._latched = False
         self._unsubs: list[CALLBACK_TYPE] = []
+
+    @property
+    def is_latched(self) -> bool:
+        """Return whether the fail-safe latch is active."""
+        return self._latched
 
     @classmethod
     async def async_setup(
@@ -59,6 +67,7 @@ class SolarFailsafeWatchdog:
         hass: HomeAssistant,
         entry: SolarAiConfigEntry,
         coordinator: SolarAiCoordinator,
+        activity: SolarAiActivityBridge,
     ) -> SolarFailsafeWatchdog | None:
         """Start the watchdog if grid-charge entities are configured."""
         switch_id = _option(entry, CONF_GRID_CHARGE_ENABLE)
@@ -66,7 +75,7 @@ class SolarFailsafeWatchdog:
         if not switch_id or not number_id:
             _LOGGER.debug("Fail-safe entities not configured; watchdog idle")
             return None
-        watchdog = cls(hass, entry, coordinator)
+        watchdog = cls(hass, entry, coordinator, activity)
         await watchdog.async_start()
         return watchdog
 
@@ -117,14 +126,9 @@ class SolarFailsafeWatchdog:
         return age < self._stale_seconds()
 
     def _max_amps(self) -> float:
-        data = self.coordinator.data or {}
-        config = data.get("config") or {}
-        grid = config.get("grid_charge") if isinstance(config, dict) else None
-        if isinstance(grid, dict) and grid.get("max_grid_charge_a") is not None:
-            try:
-                return float(grid["max_grid_charge_a"])
-            except (TypeError, ValueError):
-                pass
+        parsed = max_grid_charge_amps(self.coordinator.data)
+        if parsed is not None:
+            return parsed
         return DEFAULT_MAX_GRID_CHARGE_A
 
     @callback
@@ -135,6 +139,7 @@ class SolarFailsafeWatchdog:
         if healthy:
             if self._latched:
                 _LOGGER.info("Solar heartbeat healthy again; clearing fail-safe latch")
+                self._activity.async_failsafe_cleared()
             self._latched = False
             self._unhealthy_since = None
             return
@@ -150,6 +155,7 @@ class SolarFailsafeWatchdog:
             return
 
         self._latched = True
+        self._activity.async_set_failsafe_active(True)
         self.hass.async_create_task(self._async_apply_failsafe())
 
     async def _async_apply_failsafe(self) -> None:
@@ -182,3 +188,5 @@ class SolarFailsafeWatchdog:
                 switch_id,
                 number_id,
             )
+            return
+        self._activity.async_failsafe_activated(amps, switch_id, number_id)

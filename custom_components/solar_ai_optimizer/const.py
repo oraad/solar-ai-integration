@@ -28,5 +28,6 @@ UPDATE_POLL_INTERVAL = timedelta(seconds=2)
 PLATFORMS: list[Platform] = [
     Platform.SENSOR,
     Platform.BINARY_SENSOR,
+    Platform.EVENT,
     Platform.UPDATE,
 ]

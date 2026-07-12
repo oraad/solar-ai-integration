@@ -34,4 +34,5 @@ async def test_diagnostics_redacts_token(
     diag = await async_get_config_entry_diagnostics(hass, mock_config_entry)
     assert diag["entry"]["data"]["access_token"] == "**REDACTED**"
     assert diag["entry"]["unique_id"] == "install-abc12345"
+    assert diag["failsafe"]["max_grid_charge_amps"] == 40.0
     assert DOMAIN

@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock
 
 import pytest
+from homeassistant.const import STATE_OFF, STATE_ON
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.helpers import issue_registry as ir
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -14,6 +15,10 @@ from custom_components.solar_ai_optimizer.const import (
     CONF_GRID_CHARGE_ENABLE,
     CONF_MAX_GRID_CHARGE_CURRENT,
     DOMAIN,
+)
+from custom_components.solar_ai_optimizer.event import (
+    EVENT_FAILSAFE_ACTIVATED,
+    EVENT_FAILSAFE_CLEARED,
 )
 from custom_components.solar_ai_optimizer.failsafe import SolarFailsafeWatchdog
 from custom_components.solar_ai_optimizer.helpers import parse_pulse
@@ -142,6 +147,17 @@ async def test_failsafe_applies_services(
     await hass.async_block_till_done()
     assert len(calls) >= 2
 
+    failsafe_state = hass.states.get(
+        "binary_sensor.solar_ai_optimizer_fail_safe_active"
+    )
+    assert failsafe_state is not None
+    assert failsafe_state.state == STATE_ON
+
+    event_state = hass.states.get("event.solar_ai_optimizer_integration_activity")
+    assert event_state is not None
+    assert event_state.attributes.get("event_type") == EVENT_FAILSAFE_ACTIVATED
+    assert event_state.attributes.get("max_amps") == 55
+
     # Already latched: no additional calls.
     before = len(calls)
     watchdog._evaluate()
@@ -157,6 +173,15 @@ async def test_failsafe_applies_services(
     watchdog._evaluate()
     assert watchdog._latched is False
     assert watchdog._unhealthy_since is None
+    await hass.async_block_till_done()
+    failsafe_state = hass.states.get(
+        "binary_sensor.solar_ai_optimizer_fail_safe_active"
+    )
+    assert failsafe_state is not None
+    assert failsafe_state.state == STATE_OFF
+    event_state = hass.states.get("event.solar_ai_optimizer_integration_activity")
+    assert event_state is not None
+    assert event_state.attributes.get("event_type") == EVENT_FAILSAFE_CLEARED
 
 
 async def test_failsafe_debounce_and_defaults(

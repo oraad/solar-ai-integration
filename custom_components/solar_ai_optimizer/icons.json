@@ -9,11 +9,22 @@
       },
       "install_visibility": {
         "default": "mdi:identifier"
+      },
+      "max_grid_charge_current": {
+        "default": "mdi:current-ac"
       }
     },
     "binary_sensor": {
       "healthy": {
         "default": "mdi:lan-check"
+      },
+      "failsafe_active": {
+        "default": "mdi:shield-alert"
+      }
+    },
+    "event": {
+      "integration_activity": {
+        "default": "mdi:timeline-text"
       }
     },
     "update": {

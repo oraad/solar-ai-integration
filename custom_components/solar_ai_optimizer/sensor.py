@@ -10,8 +10,9 @@ from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
     SensorEntityDescription,
+    SensorStateClass,
 )
-from homeassistant.const import EntityCategory
+from homeassistant.const import EntityCategory, UnitOfElectricCurrent
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.typing import StateType
@@ -19,7 +20,7 @@ from homeassistant.helpers.typing import StateType
 from . import SolarAiConfigEntry
 from .coordinator import SolarAiCoordinator
 from .entity import SolarAiEntity
-from .helpers import parse_pulse
+from .helpers import max_grid_charge_amps, parse_pulse
 from .models import CoordinatorData
 
 PARALLEL_UPDATES = 0
@@ -52,6 +53,16 @@ SENSORS: tuple[SolarAiSensorEntityDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
         value_fn=lambda data: data.get("install_id"),
+    ),
+    SolarAiSensorEntityDescription(
+        key="max_grid_charge_current",
+        translation_key="max_grid_charge_current",
+        device_class=SensorDeviceClass.CURRENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=lambda data: max_grid_charge_amps(data),
     ),
 )
 

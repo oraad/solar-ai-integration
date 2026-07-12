@@ -18,7 +18,7 @@ This repository is the **HACS integration only**. Install the Solar container or
 | Product | Repository | Version |
 |---|---|---|
 | **Solar app** (Docker / HA Apps) | [oraad/solar-ai-optimizer](https://github.com/oraad/solar-ai-optimizer) | `v0.6.x` |
-| **HACS integration** (this repo) | [oraad/solar-ai-integration](https://github.com/oraad/solar-ai-integration) | `v0.1.x` |
+| **HACS integration** (this repo) | [oraad/solar-ai-integration](https://github.com/oraad/solar-ai-integration) | `v0.2.x` |
 
 - **HA App** — Settings → Apps → add the Solar app repository → install the container ([app setup docs](https://oraad.github.io/solar-ai-optimizer/home-assistant-setup/)).
 - **HACS integration** — this page; fail-safe / Update entity for Docker, Proxmox, or Core.
@@ -113,12 +113,35 @@ The integration polls Solar every **60 seconds** (`/api/health`, `/api/system/up
 | Platform | Entity | Notes |
 |---|---|---|
 | binary_sensor | Healthy | Connectivity; on when heartbeat is fresh |
+| binary_sensor | Fail-safe active | Diagnostic; on when fail-safe latch is active |
 | sensor | Version | Diagnostic |
 | sensor | Last pulse | Timestamp diagnostic |
+| sensor | Max grid charge current | Diagnostic; amps from Solar config |
 | sensor | Install ID | Diagnostic; disabled by default |
+| event | Integration activity | Fail-safe activated / cleared events |
 | update | Software | Install when `can_apply` and not add-on |
 
 Download diagnostics from the device page (access token redacted).
+
+## Activity
+
+When the fail-safe watchdog acts (Solar heartbeat stale beyond debounce), the integration records activity on the **Solar AI Optimizer** device:
+
+| Signal | What you see |
+|---|---|
+| **Integration activity** event | `failsafe_activated` with max amps and target entity IDs |
+| **Fail-safe active** binary sensor | Turns on when the latch engages |
+| **Activity / Logbook** | Human-readable entry, e.g. “Fail-safe: grid charge enabled at 40 A (Solar disconnected)” |
+
+When Solar reconnects (heartbeat fresh again), the latch clears and you see:
+
+| Signal | What you see |
+|---|---|
+| **Integration activity** event | `failsafe_cleared` |
+| **Fail-safe active** binary sensor | Turns off |
+| **Activity / Logbook** | “Fail-safe cleared: Solar connection restored” |
+
+Service calls to your configured grid-charge switch and max-current number also appear on those entities’ device pages. The integration does **not** turn off grid charge or restore the previous current when Solar reconnects — Solar resumes optimizer control when it is back online.
 
 ## Use cases
 
@@ -131,7 +154,8 @@ Download diagnostics from the device page (access token redacted).
 The integration owns a **healthy** binary sensor and watchdog:
 
 - Unhealthy = Solar `heartbeat_last_pulse` older than the stale threshold for the debounce duration
-- Action: turn on grid-charge enable + set max current (amps from Solar config or options)
+- Action: turn on grid-charge enable + set max current (amps from Solar config or default)
+- Recovery: latch clears when heartbeat is fresh again; inverter entities are **not** reverted by the integration (see [Activity](#activity))
 
 **Before enabling the integration watchdog**, remove or disable `packages/solar-optimizer-failsafe.yaml` so grid charge is not applied twice.
 
