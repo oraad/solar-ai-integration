@@ -3,12 +3,11 @@
     "step": {
       "user": {
         "title": "Connect Solar AI Optimizer",
-        "description": "Enter the Solar AI Optimizer URL and a short-lived pairing code from Settings → Pairing. Advanced: paste API_TOKEN if you cannot generate a pairing code.",
+        "description": "Enter the Solar AI Optimizer URL and a short-lived pairing code from Settings → Pairing.",
         "data": {
           "host": "Host URL",
           "verify_ssl": "Verify SSL certificate",
           "pair_code": "Pairing code",
-          "access_token": "API token (advanced)",
           "grid_charge_enable": "Grid charge enable switch",
           "max_grid_charge_current": "Max grid charge current number",
           "stale_seconds": "Heartbeat stale threshold (seconds)",
@@ -17,10 +16,13 @@
         "data_description": {
           "host": "Base URL of Solar AI Optimizer (for example http://192.168.1.50:8000).",
           "pair_code": "One-time code from the Solar pairing UI.",
-          "access_token": "Use only when pairing is unavailable; leave blank when redeeming a code.",
           "grid_charge_enable": "Optional inverter switch turned on by the HA fail-safe watchdog.",
           "max_grid_charge_current": "Optional inverter number entity set to max amps on fail-safe."
         }
+      },
+      "hassio_confirm": {
+        "title": "Solar AI Optimizer app discovered",
+        "description": "Do you want to configure Home Assistant to connect to the Solar AI Optimizer app: {addon}?"
       },
       "reconfigure": {
         "title": "Reconfigure Solar AI Optimizer",
@@ -43,7 +45,7 @@
     },
     "error": {
       "cannot_connect": "Unable to connect to Solar AI Optimizer.",
-      "invalid_auth": "Authentication failed. Provide a pairing code or a valid API token.",
+      "invalid_auth": "Authentication failed. Provide a valid pairing code.",
       "invalid_pair_code": "Invalid or expired pairing code.",
       "unknown": "Unexpected error."
     },

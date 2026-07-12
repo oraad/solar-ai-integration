@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ipaddress import ip_address
 from unittest.mock import AsyncMock
 
 from aiohttp import ClientError, ClientResponseError
@@ -9,10 +10,16 @@ from homeassistant.config_entries import SOURCE_REAUTH, SOURCE_USER
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers.service_info.hassio import HassioServiceInfo
+from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.solar_ai_optimizer.config_flow import USER_SCHEMA
 from custom_components.solar_ai_optimizer.const import (
+    AUTH_MODE_SUPERVISOR,
+    AUTH_MODE_TOKEN,
     CONF_ACCESS_TOKEN,
+    CONF_AUTH_MODE,
     CONF_GRID_CHARGE_ENABLE,
     CONF_HOST,
     CONF_INSTALL_ID,
@@ -33,6 +40,13 @@ def _http_error(status: int) -> ClientResponseError:
     )
     err.__str__ = lambda: f"{status} err"  # type: ignore[method-assign]
     return err
+
+
+def test_user_schema_pairing_only() -> None:
+    """USER_SCHEMA requires pairing code and has no access-token field."""
+    assert CONF_ACCESS_TOKEN not in USER_SCHEMA.schema
+    assert CONF_PAIR_CODE in USER_SCHEMA.schema
+    assert CONF_HOST in USER_SCHEMA.schema
 
 
 async def test_user_flow_pairing(
@@ -59,43 +73,27 @@ async def test_user_flow_pairing(
     assert result2["type"] is FlowResultType.CREATE_ENTRY
     assert result2["data"][CONF_HOST] == "http://192.168.1.10:8000"
     assert result2["data"][CONF_ACCESS_TOKEN] == "sol_c_test_token"
+    assert result2["data"][CONF_AUTH_MODE] == AUTH_MODE_TOKEN
     assert result2["data"][CONF_INSTALL_ID] == "install-abc12345"
     assert result2["options"][CONF_GRID_CHARGE_ENABLE] == "switch.grid"
     mock_client.redeem_pair.assert_awaited()
+    mock_client.get_me.assert_awaited()
 
 
-async def test_user_flow_api_token(
+async def test_user_flow_empty_pair_code(
     hass: HomeAssistant, mock_client: AsyncMock
 ) -> None:
-    """Advanced flow: paste API token without pairing."""
+    """Blank pairing code yields invalid_auth."""
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": SOURCE_USER}
     )
     result2 = await hass.config_entries.flow.async_configure(
         result["flow_id"],
-        {
-            CONF_HOST: "http://192.168.1.10:8000",
-            CONF_ACCESS_TOKEN: "sol_c_pasted",
-        },
-    )
-    assert result2["type"] is FlowResultType.CREATE_ENTRY
-    assert result2["data"][CONF_ACCESS_TOKEN] == "sol_c_pasted"
-    assert result2["data"]["client_id"] == "api-token"
-
-
-async def test_user_flow_missing_auth(
-    hass: HomeAssistant, mock_client: AsyncMock
-) -> None:
-    """Neither pair code nor token yields invalid_auth."""
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": SOURCE_USER}
-    )
-    result2 = await hass.config_entries.flow.async_configure(
-        result["flow_id"],
-        {CONF_HOST: "http://192.168.1.10:8000"},
+        {CONF_HOST: "http://192.168.1.10:8000", CONF_PAIR_CODE: "   "},
     )
     assert result2["type"] is FlowResultType.FORM
     assert result2["errors"]["base"] == "invalid_auth"
+    mock_client.get_health.assert_not_awaited()
 
 
 async def test_user_flow_cannot_connect(
@@ -152,6 +150,22 @@ async def test_user_flow_pair_errors(
         assert result2["errors"]["base"] == expected, expected
 
 
+async def test_user_flow_me_rejects_token(
+    hass: HomeAssistant, mock_client: AsyncMock
+) -> None:
+    """Redeemed token that fails /api/me is invalid_auth."""
+    mock_client.get_me = AsyncMock(side_effect=_http_error(401))
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_USER}
+    )
+    result2 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {CONF_HOST: "http://192.168.1.10:8000", CONF_PAIR_CODE: "ABCD-1234"},
+    )
+    assert result2["type"] is FlowResultType.FORM
+    assert result2["errors"]["base"] == "invalid_auth"
+
+
 async def test_user_flow_missing_install_id(
     hass: HomeAssistant, mock_client: AsyncMock
 ) -> None:
@@ -185,6 +199,88 @@ async def test_user_flow_duplicate(
     )
     assert result2["type"] is FlowResultType.ABORT
     assert result2["reason"] == "already_configured"
+
+
+async def test_hassio_flow(
+    hass: HomeAssistant, mock_client: AsyncMock, monkeypatch
+) -> None:
+    """Hassio discovery confirms with SUPERVISOR_TOKEN and stores auth_mode."""
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "supervisor-secret")
+    discovery = HassioServiceInfo(
+        config={
+            "uri": "http://solar-ai-optimizer:8000",
+            "install_id": "install-abc12345",
+        },
+        name="Solar AI Optimizer",
+        slug="solar_ai_optimizer",
+        uuid="addon-uuid",
+    )
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": "hassio"}, data=discovery
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "hassio_confirm"
+
+    result2 = await hass.config_entries.flow.async_configure(result["flow_id"], {})
+    assert result2["type"] is FlowResultType.CREATE_ENTRY
+    assert result2["data"][CONF_HOST] == "http://solar-ai-optimizer:8000"
+    assert result2["data"][CONF_AUTH_MODE] == AUTH_MODE_SUPERVISOR
+    assert CONF_ACCESS_TOKEN not in result2["data"]
+    assert result2["data"][CONF_INSTALL_ID] == "install-abc12345"
+    mock_client.get_me.assert_awaited()
+
+
+async def test_hassio_flow_missing_supervisor_token(
+    hass: HomeAssistant, mock_client: AsyncMock, monkeypatch
+) -> None:
+    """Hassio confirm fails when SUPERVISOR_TOKEN is absent."""
+    monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
+    discovery = HassioServiceInfo(
+        config={
+            "uri": "http://solar-ai-optimizer:8000",
+            "install_id": "install-abc12345",
+        },
+        name="Solar AI Optimizer",
+        slug="solar_ai_optimizer",
+        uuid="addon-uuid",
+    )
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": "hassio"}, data=discovery
+    )
+    result2 = await hass.config_entries.flow.async_configure(result["flow_id"], {})
+    assert result2["type"] is FlowResultType.FORM
+    assert result2["errors"]["base"] == "invalid_auth"
+
+
+async def test_zeroconf_flow_prefills_host(
+    hass: HomeAssistant, mock_client: AsyncMock
+) -> None:
+    """Zeroconf discovery prefills host then continues to user pairing."""
+    discovery = ZeroconfServiceInfo(
+        ip_address=ip_address("192.168.1.50"),
+        ip_addresses=[ip_address("192.168.1.50")],
+        port=8000,
+        hostname="solar.local.",
+        type="_solar-ai._tcp.local.",
+        name="solar._solar-ai._tcp.local.",
+        properties={"install_id": "install-abc12345", "uri": "http://192.168.1.50:8000"},
+    )
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": "zeroconf"}, data=discovery
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "user"
+
+    result2 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_HOST: "http://192.168.1.50:8000",
+            CONF_PAIR_CODE: "ABCD-1234",
+        },
+    )
+    assert result2["type"] is FlowResultType.CREATE_ENTRY
+    assert result2["data"][CONF_HOST] == "http://192.168.1.50:8000"
+    assert result2["data"][CONF_AUTH_MODE] == AUTH_MODE_TOKEN
 
 
 async def test_reauth_flow(

@@ -4,7 +4,7 @@ Requires **Home Assistant Core 2026.7.0+**.
 
 The [Solar AI Optimizer](https://github.com/oraad/solar-ai-optimizer) HACS integration follows the Home Assistant Integration Quality Scale checklist for HACS custom integrations (not a Core-listed platinum badge). It replaces the legacy [YAML fail-safe package](home-assistant-failsafe.md) with:
 
-- A **pairing code** so Home Assistant can talk to Solar without pasting `API_TOKEN`
+- A **pairing code** (standalone) or **Supervisor discovery** (HAOS add-on) so Home Assistant can talk to Solar without pasting tokens
 - **Fail-safe watchdog** inside HA (polls Solar `/api/health`)
 - An **Update** entity (install available on Docker/Proxmox when self-update is enabled; read-only on the Supervisor add-on)
 - Diagnostics, reconfigure / reauth flows, and a repair issue when fail-safe options are incomplete
@@ -62,17 +62,24 @@ Or download **`solar_ai_optimizer.zip`** from the [integration GitHub Releases](
 
 | Parameter | Required | Description |
 |---|---|---|
-| Host URL | Yes | Base URL Solar is reachable on from HA Core (LAN `http://…:8000`, or Supervisor add-on hostname — **not** the ingress panel URL) |
+| Host URL | Yes\* | Base URL Solar is reachable on from HA Core (LAN `http://…:8000`, or Supervisor add-on hostname — **not** the ingress panel URL) |
 | Verify SSL | No (default on) | TLS certificate verification |
 | Pairing code | Yes\* | One-time `XXXX-XXXX` from Solar Settings (~10 minutes) |
-| API token | Advanced\* | Paste `API_TOKEN` only when pairing is unavailable |
 | Grid charge enable | No | Optional `switch` entity for fail-safe |
 | Max grid charge current | No | Optional `number` entity for fail-safe amps |
 | Stale / debounce seconds | No | Heartbeat freshness and fail-safe debounce (default 120s) |
 
-\* Provide a pairing code **or** an API token.
+\* On the **HAOS add-on** path, Supervisor discovery supplies the host and uses `SUPERVISOR_TOKEN` — no URL or pairing code. On standalone / LAN, enter host + pairing code (Zeroconf can pre-fill the host).
 
 ## Pair Solar with Home Assistant
+
+### HAOS add-on (recommended)
+
+1. Install the Solar AI Optimizer app from Settings → Apps.
+2. When Home Assistant shows a discovery notification for Solar AI Optimizer, confirm it.
+3. Done — the integration uses the Supervisor network hostname and `SUPERVISOR_TOKEN` (not stored in the config entry).
+
+### Standalone / Docker / remote
 
 Start the config flow:
 
@@ -82,14 +89,14 @@ Start the config flow:
 
 1. In the Solar dashboard (admin), open **Settings → Home Assistant connection** and generate a pairing code (or call `POST /api/pair/start` as admin).
 2. Note the one-time code (`XXXX-XXXX`, valid ~10 minutes).
-3. In the HA config flow, enter the host URL and pairing code.
+3. In the HA config flow, enter the host URL (or accept the Zeroconf-discovered host) and pairing code.
 4. Optionally select grid-charge entities and thresholds.
 
-HA stores a minted `sol_c_…` client token in the config entry. Env `API_TOKEN` remains for scripts/MCP only.
+HA stores a minted `sol_c_…` client token in the config entry. Env `API_TOKEN` remains for scripts/MCP only — it is not used for integration setup.
 
 ### Add-on networking
 
-When Solar runs as the Supervisor app, use the **direct** add-on HTTP URL on the Supervisor network (slug `solar_ai_optimizer`), not `/api/hassio_ingress/…`. Humans still use the ingress sidebar.
+When Solar runs as the Supervisor app, prefer the discovery confirm flow above. If configuring manually, use the **direct** add-on HTTP URL on the Supervisor network (slug `solar_ai_optimizer`), not `/api/hassio_ingress/…`. Humans still use the ingress sidebar.
 
 ## Configuration options
 
@@ -186,7 +193,7 @@ The Update entity always appears. **Install** is offered only when Solar reports
 - Supervisor add-on updates are not applied by the HA Update entity (`can_apply` / deployment = add-on).
 - IndieAuth (Solar → HA) for inverter writes is separate from this integration.
 - Do not run the legacy YAML fail-safe package together with the integration watchdog.
-- Automatic discovery is not supported — configure host URL and pairing manually.
+- Zeroconf discovery pre-fills the Solar host; pairing is still required on standalone installs.
 
 ## Troubleshooting
 

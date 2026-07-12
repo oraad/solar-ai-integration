@@ -8,6 +8,7 @@ from homeassistant.components.diagnostics import async_redact_data
 from homeassistant.core import HomeAssistant
 
 from . import SolarAiConfigEntry
+from .api import resolve_access_token
 from .const import (
     CONF_ACCESS_TOKEN,
     CONF_DEBOUNCE_SECONDS,
@@ -30,6 +31,7 @@ async def async_get_config_entry_diagnostics(
     data = entry.runtime_data
     coordinator = data.coordinator
     options = entry.options
+    _, auth_mode = resolve_access_token(entry.data)
 
     switch_id = options.get(CONF_GRID_CHARGE_ENABLE)
     number_id = options.get(CONF_MAX_GRID_CHARGE_CURRENT)
@@ -45,6 +47,7 @@ async def async_get_config_entry_diagnostics(
             "unique_id": entry.unique_id,
             "data": async_redact_data(dict(entry.data), TO_REDACT),
             "options": dict(options),
+            "auth_mode": auth_mode,
         },
         "failsafe": {
             "watchdog_active": data.failsafe is not None,

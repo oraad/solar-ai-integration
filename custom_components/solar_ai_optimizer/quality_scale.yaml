@@ -53,12 +53,8 @@ rules:
   # Gold
   devices: done
   diagnostics: done
-  discovery:
-    status: exempt
-    comment: Manual host URL and pairing code; no network discovery.
-  discovery-update-info:
-    status: exempt
-    comment: No discovery; reconfigure flow updates host/SSL.
+  discovery: done
+  discovery-update-info: done
   docs-data-update: done
   docs-examples: done
   docs-known-limitations: done

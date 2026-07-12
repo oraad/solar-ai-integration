@@ -11,6 +11,7 @@ DOMAIN = "solar_ai_optimizer"
 CONF_HOST = "host"
 CONF_VERIFY_SSL = "verify_ssl"
 CONF_ACCESS_TOKEN = "access_token"
+CONF_AUTH_MODE = "auth_mode"
 CONF_CLIENT_ID = "client_id"
 CONF_INSTALL_ID = "install_id"
 CONF_GRID_CHARGE_ENABLE = "grid_charge_enable"
@@ -18,6 +19,13 @@ CONF_MAX_GRID_CHARGE_CURRENT = "max_grid_charge_current"
 CONF_STALE_SECONDS = "stale_seconds"
 CONF_DEBOUNCE_SECONDS = "debounce_seconds"
 CONF_PAIR_CODE = "pair_code"
+
+AUTH_MODE_TOKEN = "token"
+AUTH_MODE_SUPERVISOR = "supervisor"
+AUTH_MODE_NONE = "none"
+
+ENV_SUPERVISOR_TOKEN = "SUPERVISOR_TOKEN"
+DEFAULT_HTTP_PORT = 8000
 
 DEFAULT_STALE_SECONDS = 120
 DEFAULT_DEBOUNCE_SECONDS = 120
