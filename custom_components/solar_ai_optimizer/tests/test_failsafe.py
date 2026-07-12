@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock
 
 import pytest
+from homeassistant.const import STATE_OFF, STATE_ON
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.helpers import issue_registry as ir
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -146,7 +147,9 @@ async def test_failsafe_applies_services(
     await hass.async_block_till_done()
     assert len(calls) >= 2
 
-    failsafe_state = hass.states.get("binary_sensor.solar_ai_optimizer_failsafe_active")
+    failsafe_state = hass.states.get(
+        "binary_sensor.solar_ai_optimizer_fail_safe_active"
+    )
     assert failsafe_state is not None
     assert failsafe_state.state == STATE_ON
 
@@ -171,6 +174,10 @@ async def test_failsafe_applies_services(
     assert watchdog._latched is False
     assert watchdog._unhealthy_since is None
     await hass.async_block_till_done()
+    failsafe_state = hass.states.get(
+        "binary_sensor.solar_ai_optimizer_fail_safe_active"
+    )
+    assert failsafe_state is not None
     assert failsafe_state.state == STATE_OFF
     event_state = hass.states.get("event.solar_ai_optimizer_integration_activity")
     assert event_state is not None

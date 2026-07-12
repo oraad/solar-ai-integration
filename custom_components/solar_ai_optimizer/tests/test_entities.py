@@ -33,11 +33,13 @@ async def test_entities_created(
     assert hass.states.get("sensor.solar_ai_optimizer_last_pulse") is not None
     max_current = hass.states.get("sensor.solar_ai_optimizer_max_grid_charge_current")
     assert max_current is not None
-    assert max_current.state == "40"
+    assert max_current.state == "40.0"
     healthy = hass.states.get("binary_sensor.solar_ai_optimizer_healthy")
     assert healthy is not None
     assert healthy.state in (STATE_ON, STATE_OFF)
-    failsafe_active = hass.states.get("binary_sensor.solar_ai_optimizer_failsafe_active")
+    failsafe_active = hass.states.get(
+        "binary_sensor.solar_ai_optimizer_fail_safe_active"
+    )
     assert failsafe_active is not None
     assert failsafe_active.state == STATE_OFF
     assert hass.states.get("event.solar_ai_optimizer_integration_activity") is not None
@@ -55,7 +57,7 @@ async def test_entities_created(
 async def test_max_grid_charge_current_sensor_unavailable(
     hass: HomeAssistant, mock_client: AsyncMock, mock_config_entry: MockConfigEntry
 ) -> None:
-    """Max grid charge sensor is unavailable when Solar config is missing."""
+    """Max grid charge sensor is unknown when Solar config is missing."""
     mock_client.get_config = AsyncMock(return_value=None)
     mock_config_entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
@@ -63,7 +65,7 @@ async def test_max_grid_charge_current_sensor_unavailable(
 
     state = hass.states.get("sensor.solar_ai_optimizer_max_grid_charge_current")
     assert state is not None
-    assert state.state == "unavailable"
+    assert state.state == "unknown"
 
 
 def test_max_grid_charge_amps_helper() -> None:
