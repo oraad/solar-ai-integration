@@ -19,6 +19,8 @@ def test_manifest_version_matches_version() -> None:
     assert manifest["version"] == version
     assert manifest["config_flow"] is True
     assert "quality_scale" not in manifest
+    assert "hassio" in manifest["after_dependencies"]
+    assert "_solar-ai._tcp.local." in manifest["zeroconf"]
     assert manifest["issue_tracker"] == "https://github.com/oraad/solar-ai-integration/issues"
 
 

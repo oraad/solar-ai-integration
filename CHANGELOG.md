@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-12
+
+### Added
+
+- Supervisor discovery config flow for HAOS add-on installs (`SUPERVISOR_TOKEN`, no pairing code)
+- Zeroconf discovery for standalone / LAN hosts (`_solar-ai._tcp.local.`)
+- Auth modes: `supervisor`, `token`, and related API / diagnostics fields
+
+### Changed
+
+- Config flow and docs: pairing remains for standalone; add-on path uses discovery confirm
+- Manifest declares `hassio` after-dependency and zeroconf service type
+
 ## [0.2.0] - 2026-07-12
 
 ### Added

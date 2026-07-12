@@ -8,7 +8,14 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from aiohttp import ClientError, ClientResponseError
 
-from custom_components.solar_ai_optimizer.api import SolarAiClient
+from custom_components.solar_ai_optimizer.api import SolarAiClient, resolve_access_token
+from custom_components.solar_ai_optimizer.const import (
+    AUTH_MODE_NONE,
+    AUTH_MODE_SUPERVISOR,
+    AUTH_MODE_TOKEN,
+    CONF_ACCESS_TOKEN,
+    CONF_AUTH_MODE,
+)
 
 
 @pytest.fixture
@@ -89,3 +96,35 @@ async def test_request_raises_client_error(session: MagicMock) -> None:
     client = SolarAiClient("http://host:8000", "tok", True, session)
     with pytest.raises(ClientError):
         await client.get_health()
+
+
+def test_resolve_access_token_priority(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Stored token wins; supervisor env used when auth_mode=supervisor."""
+    token, mode = resolve_access_token(
+        {CONF_ACCESS_TOKEN: "sol_c_stored", CONF_AUTH_MODE: AUTH_MODE_SUPERVISOR}
+    )
+    assert token == "sol_c_stored"
+    assert mode == AUTH_MODE_TOKEN
+
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "sup-tok")
+    token, mode = resolve_access_token({CONF_AUTH_MODE: AUTH_MODE_SUPERVISOR})
+    assert token == "sup-tok"
+    assert mode == AUTH_MODE_SUPERVISOR
+
+    monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
+    token, mode = resolve_access_token({CONF_AUTH_MODE: AUTH_MODE_SUPERVISOR})
+    assert token == ""
+    assert mode == AUTH_MODE_SUPERVISOR
+
+    token, mode = resolve_access_token({})
+    assert token == ""
+    assert mode == AUTH_MODE_NONE
+
+
+async def test_get_me(session: MagicMock) -> None:
+    """Client GETs /api/me with auth."""
+    session.request = MagicMock(return_value=_response({"is_admin": True}))
+    client = SolarAiClient("http://host:8000", "tok", True, session)
+    assert await client.get_me() == {"is_admin": True}
+    kwargs = session.request.call_args.kwargs
+    assert kwargs["headers"]["Authorization"] == "Bearer tok"

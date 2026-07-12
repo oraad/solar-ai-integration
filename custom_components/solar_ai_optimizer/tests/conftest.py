@@ -11,6 +11,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.solar_ai_optimizer.const import (
     CONF_ACCESS_TOKEN,
+    CONF_AUTH_MODE,
     CONF_HOST,
     CONF_INSTALL_ID,
     CONF_VERIFY_SSL,
@@ -74,6 +75,7 @@ def mock_client(
     client = AsyncMock()
     client.host = "http://192.168.1.10:8000"
     client.get_health = AsyncMock(return_value=mock_health)
+    client.get_me = AsyncMock(return_value={"auth_mode": "token", "is_admin": True})
     client.get_update_info = AsyncMock(return_value=mock_update)
     client.get_config = AsyncMock(return_value=mock_config)
     client.apply_update = AsyncMock(return_value=mock_update)
@@ -113,6 +115,7 @@ def mock_config_entry() -> MockConfigEntry:
             CONF_HOST: "http://192.168.1.10:8000",
             CONF_VERIFY_SSL: True,
             CONF_ACCESS_TOKEN: "sol_c_test_token",
+            CONF_AUTH_MODE: "token",
             CONF_INSTALL_ID: "install-abc12345",
             "client_id": "client-1",
         },

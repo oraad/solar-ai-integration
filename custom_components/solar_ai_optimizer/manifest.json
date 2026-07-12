@@ -2,6 +2,7 @@
   "domain": "solar_ai_optimizer",
   "name": "Solar AI Optimizer",
   "after_dependencies": [
+    "hassio",
     "logbook"
   ],
   "codeowners": [
@@ -13,5 +14,8 @@
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/oraad/solar-ai-integration/issues",
   "requirements": [],
-  "version": "0.2.0"
+  "version": "0.3.0",
+  "zeroconf": [
+    "_solar-ai._tcp.local."
+  ]
 }

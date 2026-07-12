@@ -2,11 +2,40 @@
 
 from __future__ import annotations
 
+import os
+from collections.abc import Mapping
 from typing import Any, cast
 
 from aiohttp import ClientError, ClientResponseError, ClientSession
 
+from .const import (
+    AUTH_MODE_NONE,
+    AUTH_MODE_SUPERVISOR,
+    AUTH_MODE_TOKEN,
+    CONF_ACCESS_TOKEN,
+    CONF_AUTH_MODE,
+    ENV_SUPERVISOR_TOKEN,
+)
 from .models import HealthData, SolarConfigData, UpdateData
+
+
+def resolve_access_token(entry_data: Mapping[str, Any]) -> tuple[str, str]:
+    """Resolve bearer token and auth mode for a config entry.
+
+    Priority: stored ``sol_c_*`` (legacy/pairing) → ``SUPERVISOR_TOKEN`` when
+    ``auth_mode=supervisor`` → empty token with mode ``none``.
+    """
+    stored = str(entry_data.get(CONF_ACCESS_TOKEN) or "").strip()
+    if stored:
+        return stored, AUTH_MODE_TOKEN
+
+    if entry_data.get(CONF_AUTH_MODE) == AUTH_MODE_SUPERVISOR:
+        supervisor = os.environ.get(ENV_SUPERVISOR_TOKEN, "").strip()
+        if supervisor:
+            return supervisor, AUTH_MODE_SUPERVISOR
+        return "", AUTH_MODE_SUPERVISOR
+
+    return "", AUTH_MODE_NONE
 
 
 class SolarAiClient:
@@ -70,6 +99,10 @@ class SolarAiClient:
     async def get_health(self) -> HealthData:
         """GET /api/health (no auth required on the Solar side)."""
         return cast(HealthData, await self._request("GET", "/api/health", auth=False))
+
+    async def get_me(self) -> dict[str, Any]:
+        """GET /api/me (requires a valid bearer token)."""
+        return cast(dict[str, Any], await self._request("GET", "/api/me"))
 
     async def get_update_info(self, refresh: bool = False) -> UpdateData:
         """GET /api/system/update."""
