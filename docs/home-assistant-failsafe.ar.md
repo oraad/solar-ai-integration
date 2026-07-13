@@ -1,84 +1,67 @@
 # مساعد منزلي آمن من الفشل (مراقبة نبضات القلب)
 
-عندما يتوقف مُحسِّن الطاقة الشمسية أو يتوقف، يستطيع Home Assistant اكتشاف وجود مشكلة قديمة
-نبضات القلب وتمكين شحن الشبكة بأقصى تيار - نفس المرونة
-الإجراء الذي يطبقه المحسن عند إيقاف التشغيل بسلاسة أو عبر مفتاح الإيقاف.
+**موصى به:** ثبّت [تكامل HACS المخصص](home-assistant-integration.md)
+(Home Assistant **2026.7+**). يستعلم عن Solar عبر `GET /api/health` (`heartbeat_last_pulse`)
+ويشغّل المراقبة داخل HA — بلا حزمة YAML وبلا كيان مساعد نبضات قلب من Solar.
+
+يحدّث Solar قيمة `heartbeat_last_pulse` داخل العملية في كل دورة تحكم. الإعدادات → السلامة
+تضبط فقط **إيقاف التشغيل** لشحن الشبكة عند الحد الأقصى (خروج العملية بسلاسة)، وليس نبضة HA
+من نوع `input_datetime`.
+
+عندما يتوقف Solar أو يتعلّق، يمكن لـ Home Assistant اكتشاف نبضة API قديمة وتمكين
+شحن الشبكة بأقصى تيار — نفس إجراء المرونة الذي يطبّقه Solar عند الإيقاف السلس أو عبر مفتاح الإيقاف.
 
 ## المتطلبات الأساسية
 
-- محسّن الطاقة الشمسية AI متصل بـ Home Assistant (وظيفة إضافية أو Docker) - راجع[إعداد مساعد المنزل](home-assistant-setup.md)
-- العاكس ** كتابة ** الكيانات المعينة في الإعدادات → العاكس (تمكين شحن الشبكة + الحد الأقصى لتيار شحن الشبكة)
-- البطارية ** الحد الأقصى لتيار شحن الشبكة (A) ** تم ضبطه في الإعدادات → البطارية
+- solar-ai-optimizer يمكن الوصول إليه من Home Assistant — راجع [إعداد Home Assistant](https://oraad.github.io/solar-ai-optimizer/home-assistant-setup/)
+- تكامل HACS مقترن (أو اكتشاف المشرف على إضافة HAOS)
+- لـ fail-safe مع قفل: مفتاح **تمكين شحن الشبكة** + رقم **التيار الأقصى** في خيارات التكامل
+- أمبير البطارية / شحن الشبكة الأقصى مضبوط في Solar (يُستخدم عند قفل المراقبة)
 
-## الخطوة 1 - استيراد حزمة HA
+## ضبط مراقبة HACS
 
-تمكين الحزم في`configuration.yaml`إذا لزم الأمر - انظر
-[إعداد مساعد المنزل → تمكين الحزم](https://oraad.github.io/solar-ai-optimizer/home-assistant-setup/#enable-packages-in-configurationyaml).
+افتح **تهيئة** على تكامل Solar AI Optimizer:
 
-ينسخ [`examples/home-assistant/packages/solar-optimizer-failsafe.yaml`](https://github.com/oraad/solar-ai-optimizer/blob/main/examples/home-assistant/packages/solar-optimizer-failsafe.yaml) في مساعد منزلك`config/packages/`الدليل (أو الدمج في`configuration.yaml`).
-
-تحدد الحزمة:
-
-| الكيان | الغرض |
+| الخيار | الغرض |
 |--------|---------|
-| `input_datetime.solar_optimizer_heartbeat`| الطابع الزمني لنبضات القلب (تم تحديثه بواسطة المُحسِّن) |
-| `input_number.solar_optimizer_max_grid_charge_a`| الحد الأقصى لتيار شحن الشبكة للأتمتة الآمنة من الفشل |
-| `binary_sensor.solar_optimizer_healthy`| مستشعر القالب (لا معنى له في حالة نبضات القلب> 120 ثانية) |
+| مفتاح تمكين شحن الشبكة | يُشغَّل عندما تصبح نبضة القلب قديمة بعد debounce |
+| تيار شحن الشبكة الأقصى | كيان `number` يُضبط على أمبير شحن الشبكة الأقصى في Solar |
+| ثواني التقادم | أقصى عمر لـ `heartbeat_last_pulse` قبل unhealthy (الافتراضي 120) |
+| ثواني debounce | مدة بقاء unhealthy قبل القفل (الافتراضي 120) |
 
-تحرير العناصر النائبة قبل إعادة التحميل:
+اضبط **كياني** fail-safe معاً أو **لا شيء**. راجع [تكامل Home Assistant](home-assistant-integration.md).
 
-- `switch.YOUR_GRID_CHARGE_ENTITY`- مثل الإعدادات ← العاكس ← تمكين شحن الشبكة
-- `number.YOUR_MAX_GRID_CHARGE_CURRENT`- نفس الإعدادات ← العاكس ← الحد الأقصى لتيار شحن الشبكة
-- `input_number.solar_optimizer_max_grid_charge_a`**الأولي** — مطابقة شحن الشبكة ← تيار شحن الشبكة الأقصى (A)
+تحقق من أن Solar يعمل دورياً: يجب أن يُظهر `GET /api/health` قيمة حديثة لـ `heartbeat_last_pulse`،
+وأن يبقى مستشعر التكامل الثنائي **Healthy** قيد التشغيل.
 
-قم بإعادة تحميل المساعدين والقوالب وعمليات التشغيل الآلي بعد التحرير.
-
-## الخطوة 2 - تكوين المحسن
-
-في لوحة التحكم **الإعدادات** → **الفشل الآمن**:
-
-| المجال | القيمة |
-|-------|--------|
-| تمكين نبضات القلب | على |
-| كيان نبض القلب |`input_datetime.solar_optimizer_heartbeat`(افتراضي) |
-| تم تمكين إيقاف التشغيل الآمن من الفشل | تشغيل (افتراضي) |
-
-حفظ التغييرات.
-
-تحقق من **أدوات المطورين** → **يذكر** ذلك`input_datetime.solar_optimizer_heartbeat`يقوم بتحديث كل فاصل زمني لحلقة التحكم (افتراضي ~ 30 ثانية).
-
-إذا قمت بالفعل بإنشاء المساعد يدويًا باستخدام معرف كيان مختلف، فاضبط **كيان Heartbeat** للمطابقة.
-
-## كيف يعمل
+## كيف يعمل (HACS)
 
 ```text
-Package creates     →  input_datetime.solar_optimizer_heartbeat
-Optimizer (alive)   →  pulses that entity each control cycle
-HA template sensor  →  binary_sensor.solar_optimizer_healthy (fresh if < 120s)
-HA automation       →  if unhealthy for 2 min → grid ON + max current
-Optimizer shutdown  →  grid ON + max current (before process exits)
-Kill switch         →  grid ON + max current + pause + restore sheds
+دورة تحكم Solar  →  تقدّم heartbeat_last_pulse (داخل العملية)
+HACS يستعلم /api/health →  مستشعر Healthy الثنائي / مراقبة fail-safe
+Unhealthy + debounce →  switch.turn_on + number.set_value (أمبير أقصى)
+إيقاف Solar السلس  →  الشبكة ON + تيار أقصى (الإعدادات → السلامة إيقاف fail-safe)
+مفتاح الإيقاف          →  الشبكة ON + تيار أقصى + إيقاف مؤقت + استعادة فصول الأحمال
 ```
 
-## ضبط
+## حزمة YAML القديمة (لا تستخدم مع HACS)
 
-| المعلمة | مقترح | ملاحظات |
-|-----------|-----------|--------|
-| قالب عتبة قديمة | 90-120 ثانية | ~3–4× حلقة التحكم الافتراضية 30 ثانية |
-| الأتمتة`for:`| 2–3 دقائق | يتم إعادة تشغيل البقاء على قيد الحياة بدون مشغلات خاطئة |
-| `input_number.solar_optimizer_max_grid_charge_a`| مطابقة تكوين رسوم الشبكة للمحسن | ليس لدى HA قراءة مباشرة لإعدادات المحسن |
+قد تحتفظ التثبيتات الأقدم بـ
+[`solar-optimizer-failsafe.yaml`](https://github.com/oraad/solar-ai-optimizer/blob/main/examples/home-assistant/packages/solar-optimizer-failsafe.yaml).
+كانت تلك الحزمة تراقب `input_datetime.solar_optimizer_heartbeat`، والذي **لم تعد إصدارات Solar
+الحالية تكتبه**. عطّل الحزمة عند استخدام تكامل HACS لتجنب إجراءات شحن شبكة مزدوجة. لا تستوردها التثبيتات الجديدة.
 
 ## القيود
 
-- يتطلب Heartbeat تشغيل عملية المُحسّن والوصول إلى Home Assistant.
-- لا يعمل إيقاف التشغيل الآمن من الفشل`kill -9`أو فقدان الطاقة - اعتمد على أتمتة HA في حالات الأعطال الشديدة.
-- تقوم أتمتة HA بكتابة الكيانات العاكسة مباشرة؛ ولا يستدعي واجهة برمجة التطبيقات للمُحسِّن (والتي قد تكون معطلة).
+- تتطلب نبضة API تشغيل عملية Solar والرد على `/api/health`.
+- لا يعمل إيقاف التشغيل الآمن السلس مع `kill -9` أو فقدان الطاقة — اعتمد على مراقبة HACS للأعطال القاسية.
+- تكتب مراقبة HACS كيانات العاكس مباشرة؛ ولا تستدعي واجهة Solar لتلك الكتابات (قد يكون Solar متوقفاً).
 
-## واجهة برمجة التطبيقات الصحية
+## واجهة الصحة
 
-`GET /api/health`يشمل:
+`GET /api/health` يتضمن:
 
-- `heartbeat_configured`— تم ضبط كيان نبضات القلب وتمكينه
-- `heartbeat_last_pulse`— آخر نبضة ناجحة (الطابع الزمني ISO)
+- `heartbeat_configured` — دائماً `true` في الإصدارات الحالية (الحيوية داخل العملية)
+- `heartbeat_last_pulse` — آخر نبضة لدورة التحكم (طابع زمني ISO محلي للموقع)
 
-عدادات القياس:`heartbeat_pulses_total`, `heartbeat_failures`.
+عدادات المقاييس: `heartbeat_pulses_total`, `heartbeat_failures`.

@@ -1,101 +1,69 @@
 # Home Assistant fail-safe (heartbeat watchdog)
 
 **Recommended:** install the [HACS custom integration](home-assistant-integration.md)
-(Home Assistant **2026.7+**). It polls Solar health and runs the watchdog inside HA —
-no YAML package required.
+(Home Assistant **2026.7+**). It polls Solar `GET /api/health` (`heartbeat_last_pulse`)
+and runs the watchdog inside HA — no YAML package and no Solar heartbeat helper entity.
 
-The sections below describe the **legacy YAML package** for older installs. If you use
-the integration, **disable this package** to avoid double grid-charge actions.
+Solar advances `heartbeat_last_pulse` in-process each control cycle. Settings → Safety
+only configures **shutdown** grid-charge-at-max (graceful process exit), not an HA
+`input_datetime` pulse.
 
-When the solar-ai-optimizer stops or hangs, Home Assistant can detect a stale
-heartbeat and enable grid charge at maximum current — the same resilience
-action the optimizer applies on graceful shutdown or via the kill switch.
+When Solar stops or hangs, Home Assistant can detect a stale API pulse and enable
+grid charge at maximum current — the same resilience action Solar applies on
+graceful shutdown or via the kill switch.
 
 ## Prerequisites
 
-- solar-ai-optimizer connected to Home Assistant (add-on or Docker) — see [Home Assistant setup](https://oraad.github.io/solar-ai-optimizer/home-assistant-setup/)
-- Inverter **write** entities mapped in Settings → Inverter (grid charge enable + max grid charge current)
-- Battery **Max grid charge current (A)** set in Settings → Battery
+- solar-ai-optimizer reachable from Home Assistant — see [Home Assistant setup](https://oraad.github.io/solar-ai-optimizer/home-assistant-setup/)
+- HACS integration paired (or Supervisor discovery on HAOS add-on)
+- For latching fail-safe: inverter **grid charge enable** switch + **max current** number in integration options
+- Battery / grid charge max amps configured in Solar (used when the watchdog latches)
 
-## Step 1 — Import the HA package (legacy)
+## Configure the HACS watchdog
 
-Enable packages in `configuration.yaml` if needed — see
-[Home Assistant setup → Enable packages](https://oraad.github.io/solar-ai-optimizer/home-assistant-setup/#enable-packages-in-configurationyaml).
+Open **Configure** on the Solar AI Optimizer integration:
 
-Copy [`examples/home-assistant/packages/solar-optimizer-failsafe.yaml`](https://github.com/oraad/solar-ai-optimizer/blob/main/examples/home-assistant/packages/solar-optimizer-failsafe.yaml) into your Home Assistant `config/packages/` directory (or merge into `configuration.yaml`).
-
-The package defines:
-
-| Entity | Purpose |
+| Option | Purpose |
 |--------|---------|
-| `input_datetime.solar_optimizer_heartbeat` | Heartbeat timestamp (updated by the optimizer in site-local wall time) |
-| `input_number.solar_optimizer_heartbeat_stale_s` | Stale threshold in seconds for the healthy sensor (default 120) |
-| `input_number.solar_optimizer_max_grid_charge_a` | Max grid charge current for the fail-safe automation |
-| `binary_sensor.solar_optimizer_healthy` | Template sensor (stale if heartbeat &gt; threshold) |
+| Grid charge enable switch | Turned on when heartbeat is stale beyond debounce |
+| Max grid charge current | Number entity set to Solar’s max grid charge amps |
+| Stale seconds | Max age of `heartbeat_last_pulse` before unhealthy (default 120) |
+| Debounce seconds | How long unhealthy must persist before latch (default 120) |
 
-Edit placeholders before reloading:
+Set **both** fail-safe entities or **neither**. See [Home Assistant integration](home-assistant-integration.md).
 
-- `switch.YOUR_GRID_CHARGE_ENTITY` — same as Settings → Inverter → Grid charge enable
-- `number.YOUR_MAX_GRID_CHARGE_CURRENT` — same as Settings → Inverter → Max grid charge current
-- `input_number.solar_optimizer_max_grid_charge_a` **initial** — match Grid charge → Max grid charge current (A)
+Verify Solar is cycling: `GET /api/health` should show a recent `heartbeat_last_pulse`,
+and the integration **Healthy** binary sensor should stay on.
 
-Reload helpers, templates, and automations after editing.
-
-## Step 2 — Configure the optimizer
-
-In the dashboard **Settings** → **Fail-safe**:
-
-| Field | Value |
-|-------|--------|
-| Heartbeat enabled | On |
-| Heartbeat entity | `input_datetime.solar_optimizer_heartbeat` (default) |
-| Shutdown fail-safe enabled | On (default) |
-
-Set **Settings → Site → Timezone** to match Home Assistant's configured timezone so heartbeat wall clock and the fail-safe template agree.
-
-Save changes.
-
-Verify in **Developer tools** → **States** that `input_datetime.solar_optimizer_heartbeat` updates every control loop interval (default ~30s).
-
-If you already created the helper manually with a different entity ID, set **Heartbeat entity** to match.
-
-## How it works
+## How it works (HACS)
 
 ```text
-Package creates     →  input_datetime.solar_optimizer_heartbeat
-                      input_number.solar_optimizer_heartbeat_stale_s
-Optimizer (alive)   →  pulses heartbeat each control cycle (site-local wall clock)
-HA template sensor  →  binary_sensor.solar_optimizer_healthy (as_datetime | as_local age check)
-HA automation       →  if unhealthy for 2 min → grid ON + max current
-Optimizer shutdown  →  grid ON + max current (before process exits)
-Kill switch         →  grid ON + max current + pause + restore sheds
+Solar control cycle  →  advances heartbeat_last_pulse (in-process)
+HACS polls /api/health →  Healthy binary sensor / fail-safe watchdog
+Unhealthy + debounce →  switch.turn_on + number.set_value (max amps)
+Solar graceful stop  →  grid ON + max current (Settings → Safety shutdown fail-safe)
+Kill switch          →  grid ON + max current + pause + restore sheds
 ```
 
-### Timezone
+## Legacy YAML package (do not use with HACS)
 
-The optimizer writes the heartbeat as a **naive site-local** `YYYY-MM-DD HH:MM:SS` string. The template parses it with `as_datetime | as_local` so age is compared against `now()` in Home Assistant's timezone. Align **Settings → Site → Timezone** with HA's timezone setting.
-
-**Existing installs:** merge updates from [`solar-optimizer-failsafe.yaml`](https://github.com/oraad/solar-ai-optimizer/blob/main/examples/home-assistant/packages/solar-optimizer-failsafe.yaml) and reload **Helpers** and **Template** entities.
-
-## Tuning
-
-| Parameter | Suggested | Notes |
-|-----------|-----------|--------|
-| `input_number.solar_optimizer_heartbeat_stale_s` | 90–120 | ~3–4× default 30s control loop |
-| Automation `for:` | 2–3 min | Survives restarts without false triggers |
-| `input_number.solar_optimizer_max_grid_charge_a` | Match optimizer grid charge config | HA has no direct read of optimizer settings |
+Older installs may still have
+[`solar-optimizer-failsafe.yaml`](https://github.com/oraad/solar-ai-optimizer/blob/main/examples/home-assistant/packages/solar-optimizer-failsafe.yaml).
+That package watched `input_datetime.solar_optimizer_heartbeat`, which **current Solar
+builds no longer write**. Disable the package when using the HACS integration to avoid
+double grid-charge actions. New installs should not import it.
 
 ## Limitations
 
-- Heartbeat requires the optimizer process to run and reach Home Assistant.
-- Graceful shutdown fail-safe does not run on `kill -9` or power loss — rely on the HA automation for hard crashes.
-- The HA automation writes inverter entities directly; it does not call the optimizer API (which may be down).
+- API heartbeat requires the Solar process to run and answer `/api/health`.
+- Graceful shutdown fail-safe does not run on `kill -9` or power loss — rely on the HACS watchdog for hard crashes.
+- The HACS watchdog writes inverter entities directly; it does not call the Solar API for those writes (Solar may be down).
 
 ## Health API
 
 `GET /api/health` includes:
 
-- `heartbeat_configured` — heartbeat entity set and enabled
-- `heartbeat_last_pulse` — last successful pulse (site-local ISO timestamp)
+- `heartbeat_configured` — always `true` on current builds (liveness is in-process)
+- `heartbeat_last_pulse` — last control-cycle pulse (site-local ISO timestamp)
 
 Metrics counters: `heartbeat_pulses_total`, `heartbeat_failures`.

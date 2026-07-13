@@ -1,84 +1,69 @@
-# Sécurité intégrée de Home Assistant (chien de surveillance du rythme cardiaque)
+# Sécurité intégrée Home Assistant (chien de garde heartbeat)
 
-Lorsque l'optimiseur solaire-ai s'arrête ou se bloque, Home Assistant peut détecter un
-battement de cœur et active la charge du réseau au courant maximum – la même résilience
-action que l'optimiseur applique lors d'un arrêt progressif ou via le kill switch.
+**Recommandé :** installez l'[intégration HACS personnalisée](home-assistant-integration.md)
+(Home Assistant **2026.7+**). Elle interroge Solar `GET /api/health` (`heartbeat_last_pulse`)
+et exécute le chien de garde dans HA — sans package YAML ni entité helper heartbeat côté Solar.
+
+Solar avance `heartbeat_last_pulse` en processus à chaque cycle de contrôle. Paramètres → Sécurité
+ne configure que l'**arrêt** charge réseau au maximum (sortie gracieuse du processus), pas une
+impulsion HA `input_datetime`.
+
+Lorsque Solar s'arrête ou se bloque, Home Assistant peut détecter une impulsion API périmée et
+activer la charge réseau au courant maximum — la même action de résilience que Solar applique
+lors d'un arrêt gracieux ou via le kill switch.
 
 ## Conditions préalables
 
-- solar-ai-optimizer connecté à Home Assistant (module complémentaire ou Docker) — voir[Configuration de l'assistant à domicile](home-assistant-setup.md)
-- Entités de l'onduleur **écrire** mappées dans Paramètres → Onduleur (activation de la charge du réseau + courant de charge maximum du réseau)
-- Batterie **Courant de charge maximum du réseau (A)** défini dans Paramètres → Batterie
+- solar-ai-optimizer joignable depuis Home Assistant — voir [Configuration Home Assistant](https://oraad.github.io/solar-ai-optimizer/home-assistant-setup/)
+- Intégration HACS appairée (ou découverte Supervisor sur le module complémentaire HAOS)
+- Pour un fail-safe à verrouillage : interrupteur **activation charge réseau** + nombre **courant max** dans les options de l'intégration
+- Courant max batterie / charge réseau configuré dans Solar (utilisé quand le chien de garde se verrouille)
 
-## Étape 1 — Importez le package HA
+## Configurer le chien de garde HACS
 
-Activer les packages dans`configuration.yaml`si nécessaire - voir
-[Configuration de Home Assistant → Activer les packages](https://oraad.github.io/solar-ai-optimizer/home-assistant-setup/#enable-packages-in-configurationyaml).
+Ouvrez **Configurer** sur l'intégration Solar AI Optimizer :
 
-Copier [`examples/home-assistant/packages/solar-optimizer-failsafe.yaml`](https://github.com/oraad/solar-ai-optimizer/blob/main/examples/home-assistant/packages/solar-optimizer-failsafe.yaml) dans votre Home Assistant`config/packages/`répertoire (ou fusionner dans`configuration.yaml`).
-
-Le package définit :
-
-| Entité | Objectif |
+| Option | Objectif |
 |--------|---------|
-| `input_datetime.solar_optimizer_heartbeat`| Horodatage du battement de coeur (mis à jour par l'optimiseur) |
-| `input_number.solar_optimizer_max_grid_charge_a`| Courant de charge maximum du réseau pour l'automatisation de sécurité |
-| `binary_sensor.solar_optimizer_healthy`| Capteur de modèle (périmé si battement de coeur > 120 s) |
+| Interrupteur activation charge réseau | Allumé lorsque le heartbeat est périmé au-delà du debounce |
+| Courant max de charge réseau | Entité `number` réglée sur les ampères max de charge réseau de Solar |
+| Secondes de péremption | Âge max de `heartbeat_last_pulse` avant unhealthy (défaut 120) |
+| Secondes de debounce | Durée pendant laquelle unhealthy doit persister avant verrouillage (défaut 120) |
 
-Modifiez les espaces réservés avant de recharger :
+Définissez **les deux** entités fail-safe ou **aucune**. Voir [Intégration Home Assistant](home-assistant-integration.md).
 
-- `switch.YOUR_GRID_CHARGE_ENTITY`— identique à Paramètres → Onduleur → Activation de la charge du réseau
-- `number.YOUR_MAX_GRID_CHARGE_CURRENT`— identique à Paramètres → Onduleur → Courant de charge maximum du réseau
-- `input_number.solar_optimizer_max_grid_charge_a`**initial** — correspond à la charge du réseau → Courant de charge du réseau maximum (A)
+Vérifiez que Solar cycle : `GET /api/health` doit montrer un `heartbeat_last_pulse` récent,
+et le capteur binaire **Healthy** de l'intégration doit rester allumé.
 
-Rechargez les assistants, les modèles et les automatisations après l'édition.
-
-## Étape 2 — Configurer l'optimiseur
-
-Dans le tableau de bord **Paramètres** → **Fail-safe** :
-
-| Champ | Valeur |
-|-------|--------|
-| Battement de coeur activé | Sur |
-| Entité de battement de coeur |`input_datetime.solar_optimizer_heartbeat`(par défaut) |
-| Arrêt sécurisé activé | Activé (par défaut) |
-
-Enregistrez les modifications.
-
-Vérifiez dans **Outils de développement** → **États** que`input_datetime.solar_optimizer_heartbeat`met à jour chaque intervalle de boucle de contrôle (par défaut ~ 30 s).
-
-Si vous avez déjà créé l'assistant manuellement avec un ID d'entité différent, définissez **Entité Heartbeat** pour qu'elle corresponde.
-
-## Comment ça marche
+## Fonctionnement (HACS)
 
 ```text
-Package creates     →  input_datetime.solar_optimizer_heartbeat
-Optimizer (alive)   →  pulses that entity each control cycle
-HA template sensor  →  binary_sensor.solar_optimizer_healthy (fresh if < 120s)
-HA automation       →  if unhealthy for 2 min → grid ON + max current
-Optimizer shutdown  →  grid ON + max current (before process exits)
-Kill switch         →  grid ON + max current + pause + restore sheds
+Cycle de contrôle Solar  →  avance heartbeat_last_pulse (en processus)
+HACS interroge /api/health →  capteur binaire Healthy / chien de garde fail-safe
+Unhealthy + debounce →  switch.turn_on + number.set_value (ampères max)
+Arrêt gracieux Solar  →  réseau ON + courant max (Paramètres → Sécurité arrêt fail-safe)
+Kill switch          →  réseau ON + courant max + pause + restauration des délestages
 ```
 
-## Réglage
+## Package YAML hérité (ne pas utiliser avec HACS)
 
-| Paramètre | suggéré | Remarques |
-|-----------|-----------|--------|
-| Seuil obsolète du modèle | 90-120 ans | ~ 3 à 4 × boucle de contrôle par défaut de 30 s |
-| Automation`for:`| 2 à 3 minutes | Survit aux redémarrages sans faux déclencheurs |
-| `input_number.solar_optimizer_max_grid_charge_a`| Correspondre à la configuration des frais de réseau de l'optimiseur | HA n'a pas de lecture directe des paramètres de l'optimiseur |
+Les anciennes installations peuvent encore avoir
+[`solar-optimizer-failsafe.yaml`](https://github.com/oraad/solar-ai-optimizer/blob/main/examples/home-assistant/packages/solar-optimizer-failsafe.yaml).
+Ce package surveillait `input_datetime.solar_optimizer_heartbeat`, que **les builds Solar
+actuels n'écrivent plus**. Désactivez le package avec l'intégration HACS pour éviter
+des actions de charge réseau en double. Les nouvelles installations ne doivent pas l'importer.
 
 ## Limites
 
-- Heartbeat nécessite que le processus d'optimisation s'exécute et atteigne Home Assistant.
-- L'arrêt progressif sans échec ne fonctionne pas`kill -9`ou perte de puissance : comptez sur l'automatisation HA en cas de panne grave.
-- L'automatisme HA écrit directement les entités de l'onduleur ; il n'appelle pas l'API de l'optimiseur (qui peut être en panne).
+- Le heartbeat API exige que le processus Solar tourne et réponde à `/api/health`.
+- L'arrêt gracieux fail-safe ne s'exécute pas sur `kill -9` ni perte de courant — comptez sur le chien de garde HACS pour les crashes durs.
+- Le chien de garde HACS écrit directement les entités onduleur ; il n'appelle pas l'API Solar pour ces écritures (Solar peut être hors ligne).
 
 ## API de santé
 
-`GET /api/health`comprend :
+`GET /api/health` inclut :
 
-- `heartbeat_configured`— entité de battement de cœur définie et activée
-- `heartbeat_last_pulse`— dernière impulsion réussie (horodatage ISO)
+- `heartbeat_configured` — toujours `true` sur les builds actuels (la vivacité est en processus)
+- `heartbeat_last_pulse` — dernière impulsion de cycle de contrôle (horodatage ISO local au site)
 
-Compteurs de métriques :`heartbeat_pulses_total`, `heartbeat_failures`.
+Compteurs de métriques : `heartbeat_pulses_total`, `heartbeat_failures`.

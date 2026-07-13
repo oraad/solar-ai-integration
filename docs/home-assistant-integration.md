@@ -202,7 +202,7 @@ The Update entity always appears. **Install** is offered only when Solar reports
 | HACS: “add-on repository” / not an integration | Add **`oraad/solar-ai-integration`** as Integration, not the app repo. The app repo (`oraad/solar-ai-optimizer`) is for HA Apps / Docker only. |
 | Cannot connect | Check host URL from HA Core network; not ingress URL; firewall / TLS |
 | Invalid / expired pairing code | Generate a new code in Solar Settings |
-| Unhealthy binary sensor | Confirm Solar heartbeat is writing; raise stale seconds; check HA time sync |
+| Unhealthy binary sensor | Confirm `GET /api/health` `heartbeat_last_pulse` advances each Solar cycle; raise stale seconds; check HA time sync |
 | Unauthorized / reauth | Revoke or expired client — use Reauth with a new pairing code |
 | Fail-safe repair issue | Set both switch and number (or clear both) in options |
 | Update Install unavailable | Expected on add-on; on Docker ensure self-update / `can_apply` |

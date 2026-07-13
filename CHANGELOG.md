@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Fail-safe docs: HACS / API `heartbeat_last_pulse` is the primary path; Solar no longer writes an HA heartbeat helper; YAML package demoted to legacy-only
+- Integration troubleshooting: confirm `/api/health` pulse advances (not HA entity writes)
+
 ## [0.3.0] - 2026-07-12
 
 ### Added
