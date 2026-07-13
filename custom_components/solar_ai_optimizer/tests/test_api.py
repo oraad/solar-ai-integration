@@ -128,3 +128,16 @@ async def test_get_me(session: MagicMock) -> None:
     assert await client.get_me() == {"is_admin": True}
     kwargs = session.request.call_args.kwargs
     assert kwargs["headers"]["Authorization"] == "Bearer tok"
+
+
+async def test_request_has_timeout(session: MagicMock) -> None:
+    """Every request passes ClientTimeout(total=30) to the session."""
+    from aiohttp import ClientTimeout
+
+    session.request = MagicMock(return_value=_response({"ok": True}))
+    client = SolarAiClient("http://host:8000", "tok", True, session)
+    await client.get_health()
+    kwargs = session.request.call_args.kwargs
+    timeout = kwargs.get("timeout")
+    assert isinstance(timeout, ClientTimeout)
+    assert timeout.total == 30

@@ -8,11 +8,15 @@ from unittest.mock import AsyncMock
 import pytest
 from aiohttp import ClientError, ClientResponseError
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers.update_coordinator import UpdateFailed
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.solar_ai_optimizer.const import UPDATE_POLL_INTERVAL
+from custom_components.solar_ai_optimizer.const import (
+    AUTH_MODE_SUPERVISOR,
+    CONF_AUTH_MODE,
+    UPDATE_POLL_INTERVAL,
+)
 from custom_components.solar_ai_optimizer.coordinator import SolarAiCoordinator
 
 
@@ -55,6 +59,23 @@ async def test_coordinator_auth_failed(
         await coordinator._async_update_data()
 
 
+async def test_coordinator_auth_failed_supervisor_not_ready(
+    hass: HomeAssistant, mock_client: AsyncMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """401 from health with supervisor auth_mode becomes ConfigEntryNotReady, not AuthFailed."""
+    mock_config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        mock_config_entry,
+        data={**mock_config_entry.data, CONF_AUTH_MODE: AUTH_MODE_SUPERVISOR},
+    )
+    mock_client.get_health = AsyncMock(side_effect=_http_error(401))
+    coordinator = SolarAiCoordinator(
+        hass, config_entry=mock_config_entry, client=mock_client
+    )
+    with pytest.raises(ConfigEntryNotReady):
+        await coordinator._async_update_data()
+
+
 async def test_coordinator_health_http_error(
     hass: HomeAssistant, mock_client: AsyncMock, mock_config_entry: MockConfigEntry
 ) -> None:
@@ -81,26 +102,48 @@ async def test_coordinator_update_failed(
         await coordinator._async_update_data()
 
 
-async def test_coordinator_update_info_errors(
+async def test_coordinator_update_401_returns_partial_data(
     hass: HomeAssistant, mock_client: AsyncMock, mock_config_entry: MockConfigEntry
 ) -> None:
-    """Update endpoint auth and network failures."""
+    """401 from update endpoint returns partial health data, not ConfigEntryAuthFailed."""
     mock_config_entry.add_to_hass(hass)
+    mock_client.get_update_info = AsyncMock(side_effect=_http_error(401))
     coordinator = SolarAiCoordinator(
         hass, config_entry=mock_config_entry, client=mock_client
     )
+    data = await coordinator._async_update_data()
+    # Health data is present; update fields default to empty.
+    assert data["version"] == "0.6.11-beta.2"
+    assert data["update_available"] is False
+    assert data["can_apply"] is False
 
-    mock_client.get_update_info = AsyncMock(side_effect=_http_error(401))
-    with pytest.raises(ConfigEntryAuthFailed):
-        await coordinator._async_update_data()
 
+async def test_coordinator_update_error_returns_partial_data(
+    hass: HomeAssistant, mock_client: AsyncMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """Non-401 HTTP error on update returns partial data, not UpdateFailed."""
+    mock_config_entry.add_to_hass(hass)
     mock_client.get_update_info = AsyncMock(side_effect=_http_error(502))
-    with pytest.raises(UpdateFailed):
-        await coordinator._async_update_data()
+    coordinator = SolarAiCoordinator(
+        hass, config_entry=mock_config_entry, client=mock_client
+    )
+    data = await coordinator._async_update_data()
+    assert data["version"] == "0.6.11-beta.2"
+    assert data["update_available"] is False
 
+
+async def test_coordinator_update_network_error_returns_partial_data(
+    hass: HomeAssistant, mock_client: AsyncMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """Network error on update returns partial data, not UpdateFailed."""
+    mock_config_entry.add_to_hass(hass)
     mock_client.get_update_info = AsyncMock(side_effect=ClientError("x"))
-    with pytest.raises(UpdateFailed):
-        await coordinator._async_update_data()
+    coordinator = SolarAiCoordinator(
+        hass, config_entry=mock_config_entry, client=mock_client
+    )
+    data = await coordinator._async_update_data()
+    assert data["version"] == "0.6.11-beta.2"
+    assert data["update_available"] is False
 
 
 async def test_coordinator_config_best_effort(

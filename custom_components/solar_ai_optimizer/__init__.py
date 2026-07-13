@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryError
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .activity import SolarAiActivityBridge
@@ -41,8 +41,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolarAiConfigEntry) -> b
     access_token, auth_mode = resolve_access_token(entry.data)
     if not access_token:
         if auth_mode == AUTH_MODE_SUPERVISOR:
-            raise ConfigEntryError(
-                "SUPERVISOR_TOKEN is not available for supervisor auth mode"
+            raise ConfigEntryNotReady(
+                "SUPERVISOR_TOKEN is not available; will retry when the supervisor token becomes accessible"
             )
         raise ConfigEntryAuthFailed("Missing Solar AI Optimizer access token")
 

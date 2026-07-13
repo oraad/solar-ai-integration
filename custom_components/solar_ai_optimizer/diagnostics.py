@@ -11,6 +11,7 @@ from . import SolarAiConfigEntry
 from .api import resolve_access_token
 from .const import (
     CONF_ACCESS_TOKEN,
+    CONF_CLIENT_ID,
     CONF_DEBOUNCE_SECONDS,
     CONF_GRID_CHARGE_ENABLE,
     CONF_MAX_GRID_CHARGE_CURRENT,
@@ -19,7 +20,7 @@ from .const import (
 )
 from .helpers import max_grid_charge_amps
 
-TO_REDACT = {CONF_ACCESS_TOKEN}
+TO_REDACT = {CONF_ACCESS_TOKEN, CONF_CLIENT_ID}
 
 
 async def async_get_config_entry_diagnostics(
@@ -53,6 +54,7 @@ async def async_get_config_entry_diagnostics(
             "watchdog_active": data.failsafe is not None,
             "configured": failsafe_configured,
             "incomplete": failsafe_incomplete,
+            "latched": data.failsafe.is_latched if data.failsafe else None,
             "stale_seconds": options.get(CONF_STALE_SECONDS),
             "debounce_seconds": options.get(CONF_DEBOUNCE_SECONDS),
             "max_grid_charge_amps": resolved_max_amps,

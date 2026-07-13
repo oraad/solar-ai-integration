@@ -7,9 +7,10 @@ from homeassistant.components.binary_sensor import (
     BinarySensorEntity,
     BinarySensorEntityDescription,
 )
-from homeassistant.const import EntityCategory
+from homeassistant.const import STATE_ON, EntityCategory
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.util import dt as dt_util
 
 from . import SolarAiConfigEntry
@@ -79,6 +80,10 @@ class SolarAiHealthyBinarySensor(SolarAiEntity, BinarySensorEntity):
         """Return True when the Solar heartbeat is fresh."""
         if not self.coordinator.data:
             return None
+        if self.coordinator.data.get("heartbeat_configured") is False:
+            # No heartbeat signal to judge freshness from — align with the
+            # fail-safe watchdog, which treats this as healthy to avoid false alarms.
+            return True
         pulse = parse_pulse(self.coordinator.data.get("heartbeat_last_pulse"))
         if pulse is None:
             return False
@@ -86,7 +91,7 @@ class SolarAiHealthyBinarySensor(SolarAiEntity, BinarySensorEntity):
         return age < self._stale_seconds()
 
 
-class SolarAiFailsafeBinarySensor(SolarAiEntity, BinarySensorEntity):
+class SolarAiFailsafeBinarySensor(SolarAiEntity, BinarySensorEntity, RestoreEntity):
     """On when the fail-safe latch is active."""
 
     entity_description = FAILSAFE_ACTIVE_SENSOR
@@ -98,6 +103,18 @@ class SolarAiFailsafeBinarySensor(SolarAiEntity, BinarySensorEntity):
         self._entry = entry
         self._latched = False
         self._attr_unique_id = f"{entry.unique_id}_failsafe_active"
+
+    async def async_added_to_hass(self) -> None:
+        """Restore latched state from last known entity state."""
+        await super().async_added_to_hass()
+        last_state = await self.async_get_last_state()
+        if last_state is not None and last_state.state == STATE_ON:
+            self._latched = True
+
+    @property
+    def available(self) -> bool:
+        """Always available — the latch is local HA state, not Solar-derived."""
+        return True
 
     @property
     def is_on(self) -> bool:

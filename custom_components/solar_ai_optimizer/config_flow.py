@@ -57,24 +57,6 @@ USER_SCHEMA = vol.Schema(
         vol.Required(CONF_HOST): str,
         vol.Required(CONF_PAIR_CODE): str,
         vol.Optional(CONF_VERIFY_SSL, default=True): bool,
-        vol.Optional(CONF_GRID_CHARGE_ENABLE): EntitySelector(
-            EntitySelectorConfig(domain="switch")
-        ),
-        vol.Optional(CONF_MAX_GRID_CHARGE_CURRENT): EntitySelector(
-            EntitySelectorConfig(domain="number")
-        ),
-        vol.Optional(CONF_STALE_SECONDS, default=DEFAULT_STALE_SECONDS): NumberSelector(
-            NumberSelectorConfig(
-                min=30, max=600, step=10, mode=NumberSelectorMode.BOX, unit_of_measurement="s"
-            )
-        ),
-        vol.Optional(
-            CONF_DEBOUNCE_SECONDS, default=DEFAULT_DEBOUNCE_SECONDS
-        ): NumberSelector(
-            NumberSelectorConfig(
-                min=30, max=600, step=10, mode=NumberSelectorMode.BOX, unit_of_measurement="s"
-            )
-        ),
     }
 )
 
@@ -114,19 +96,6 @@ OPTIONS_SCHEMA = vol.Schema(
     }
 )
 
-
-def _failsafe_options(user_input: dict[str, Any]) -> dict[str, Any]:
-    """Extract optional fail-safe fields from a user step submission."""
-    return {
-        key: user_input[key]
-        for key in (
-            CONF_GRID_CHARGE_ENABLE,
-            CONF_MAX_GRID_CHARGE_CURRENT,
-            CONF_STALE_SECONDS,
-            CONF_DEBOUNCE_SECONDS,
-        )
-        if key in user_input and user_input[key] not in (None, "")
-    }
 
 
 class SolarAiConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -231,7 +200,7 @@ class SolarAiConfigFlow(ConfigFlow, domain=DOMAIN):
                             return self.async_create_entry(
                                 title=title,
                                 data=data,
-                                options=_failsafe_options(user_input),
+                                options={},
                             )
                         errors["base"] = "unknown"
 
@@ -381,10 +350,13 @@ class SolarAiConfigFlow(ConfigFlow, domain=DOMAIN):
                 _LOGGER.exception("Unexpected error during reconfigure")
                 errors["base"] = "unknown"
             else:
-                install_id = health.get("install_id") or entry.data.get(CONF_INSTALL_ID)
-                if install_id:
-                    await self.async_set_unique_id(str(install_id))
-                    self._abort_if_unique_id_mismatch(reason="wrong_install")
+                install_id = health.get("install_id")
+                if not install_id:
+                    # No install_id to compare against — distinct from a confirmed
+                    # mismatch (wrong_install); the host may just be an older Solar.
+                    return self.async_abort(reason="missing_install_id")
+                await self.async_set_unique_id(str(install_id))
+                self._abort_if_unique_id_mismatch(reason="wrong_install")
                 return self.async_update_reload_and_abort(
                     entry,
                     data_updates={
@@ -409,7 +381,10 @@ class SolarAiConfigFlow(ConfigFlow, domain=DOMAIN):
         self, entry_data: dict[str, Any]
     ) -> ConfigFlowResult:
         """Start reauth when Solar returns 401."""
-        _ = entry_data
+        if entry_data.get(CONF_AUTH_MODE) == AUTH_MODE_SUPERVISOR:
+            # Supervisor token is injected by HA at runtime — pairing is not applicable.
+            # Abort immediately; the user should verify the add-on is running and reload.
+            return self.async_abort(reason="supervisor_managed")
         self._reauth_entry = self.hass.config_entries.async_get_entry(
             self.context["entry_id"]
         )

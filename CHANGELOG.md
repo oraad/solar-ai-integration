@@ -7,10 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1-beta.1] - 2026-07-13
+
+### Added
+
+- Fail-safe incomplete repair guides Configure → Options; `missing_install_id` repair path
+- Docs: event trigger examples; 5s poll / amps copy alignment
+
 ### Changed
 
 - Fail-safe docs: HACS / API `heartbeat_last_pulse` is the primary path; Solar no longer writes an HA heartbeat helper; YAML package demoted to legacy-only
 - Integration troubleshooting: confirm `/api/health` pulse advances (not HA entity writes)
+- Fail-safe binary sensor stays `available=True` while latched; healthy sensor respects `heartbeat_configured=False`
+- Quality-scale / strings polish for fail-safe and config flow
+
+### Fixed
+
+- Cancel in-flight fail-safe apply when latch clears (stop or healthy evaluate)
+- RestoreEntity adopts restored ON latch then `_evaluate()` (clear when healthy; stay latched when not)
+- Supervisor health `401` raises `ConfigEntryNotReady` (retryable) instead of auth-failed
 
 ## [0.3.0] - 2026-07-12
 

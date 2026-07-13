@@ -3,21 +3,15 @@
     "step": {
       "user": {
         "title": "Connect Solar AI Optimizer",
-        "description": "Enter the Solar AI Optimizer URL and a short-lived pairing code from Settings → Pairing.",
+        "description": "Enter the Solar AI Optimizer URL and a short-lived pairing code from Settings → Home Assistant connection.",
         "data": {
           "host": "Host URL",
           "verify_ssl": "Verify SSL certificate",
-          "pair_code": "Pairing code",
-          "grid_charge_enable": "Grid charge enable switch",
-          "max_grid_charge_current": "Max grid charge current number",
-          "stale_seconds": "Heartbeat stale threshold (seconds)",
-          "debounce_seconds": "Fail-safe debounce (seconds)"
+          "pair_code": "Pairing code"
         },
         "data_description": {
           "host": "Base URL of Solar AI Optimizer (for example http://192.168.1.50:8000).",
-          "pair_code": "One-time code from the Solar pairing UI.",
-          "grid_charge_enable": "Optional inverter switch turned on by the HA fail-safe watchdog.",
-          "max_grid_charge_current": "Optional inverter number entity set to max amps on fail-safe."
+          "pair_code": "One-time code from the Solar pairing UI. Fail-safe entities and thresholds are configured after setup via Configure."
         }
       },
       "hassio_confirm": {
@@ -51,8 +45,10 @@
     },
     "abort": {
       "already_configured": "This Solar install is already configured.",
+      "missing_install_id": "The host did not report an install ID, so Home Assistant cannot confirm it is the same Solar install. Check the host URL and try again.",
       "reauth_successful": "Re-authentication successful.",
       "reconfigure_successful": "Reconfiguration successful.",
+      "supervisor_managed": "This integration uses Supervisor-managed authentication. The supervisor token is handled by Home Assistant automatically — no re-pairing is required.",
       "wrong_install": "The host belongs to a different Solar install."
     }
   },
@@ -118,7 +114,36 @@
   "issues": {
     "failsafe_incomplete": {
       "title": "Fail-safe configuration incomplete",
-      "description": "Both a grid-charge enable switch and a max grid-charge current number entity are required for the fail-safe watchdog. Open the integration options and set both entities, or clear both."
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Open Configure → Options to fix fail-safe",
+            "description": "Both a grid-charge enable switch and a max grid-charge current number entity are required. Go to **Settings → Devices & Services → Solar AI Optimizer**, click **Configure**, and open the **Options** step. Set **both** entities, or clear both — configuring only one is not allowed.\n\nAfter saving options with both entities set (or cleared), this issue will close automatically."
+          }
+        }
+      }
+    },
+    "failsafe_cleared_verify": {
+      "title": "Fail-safe cleared — verify inverter settings",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Verify inverter settings",
+            "description": "The Solar AI heartbeat has recovered and the fail-safe watchdog has cleared its latch. Solar will resume automatic inverter control.\n\nBefore dismissing: confirm your inverter's grid-charge switch and current settings are in the expected state. Solar does **not** revert the values it set during the fail-safe."
+          }
+        }
+      }
+    },
+    "failsafe_amps_fallback": {
+      "title": "Fail-safe used default grid-charge current",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Check Solar config",
+            "description": "The fail-safe activated but could not read the max grid-charge current from Solar (the built-in default of 60 A was used instead).\n\nTo avoid recurrence:\n1. Confirm Solar is reachable from Home Assistant.\n2. Check the Solar config (`max_grid_charge_a` in `/api/config`) to ensure the correct current limit is set — this is not configured in the HA integration options.\n\nDismiss once you have verified Solar is connected and the current limit is correct."
+          }
+        }
+      }
     }
   }
 }

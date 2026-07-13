@@ -18,7 +18,7 @@ This repository is the **HACS integration only**. Install the Solar container or
 | Product | Repository | Version |
 |---|---|---|
 | **Solar app** (Docker / HA Apps) | [oraad/solar-ai-optimizer](https://github.com/oraad/solar-ai-optimizer) | `v0.6.x` |
-| **HACS integration** (this repo) | [oraad/solar-ai-integration](https://github.com/oraad/solar-ai-integration) | `v0.2.x` |
+| **HACS integration** (this repo) | [oraad/solar-ai-integration](https://github.com/oraad/solar-ai-integration) | `v0.3.x` |
 
 - **HA App** — Settings → Apps → add the Solar app repository → install the container ([app setup docs](https://oraad.github.io/solar-ai-optimizer/home-assistant-setup/)).
 - **HACS integration** — this page; fail-safe / Update entity for Docker, Proxmox, or Core.
@@ -64,12 +64,11 @@ Or download **`solar_ai_optimizer.zip`** from the [integration GitHub Releases](
 |---|---|---|
 | Host URL | Yes\* | Base URL Solar is reachable on from HA Core (LAN `http://…:8000`, or Supervisor add-on hostname — **not** the ingress panel URL) |
 | Verify SSL | No (default on) | TLS certificate verification |
-| Pairing code | Yes\* | One-time `XXXX-XXXX` from Solar Settings (~10 minutes) |
-| Grid charge enable | No | Optional `switch` entity for fail-safe |
-| Max grid charge current | No | Optional `number` entity for fail-safe amps |
-| Stale / debounce seconds | No | Heartbeat freshness and fail-safe debounce (default 120s) |
+| Pairing code | Yes\* | One-time `XXXX-XXXX` from Solar **Settings → Home Assistant connection** (~10 minutes) |
 
 \* On the **HAOS add-on** path, Supervisor discovery supplies the host and uses `SUPERVISOR_TOKEN` — no URL or pairing code. On standalone / LAN, enter host + pairing code (Zeroconf can pre-fill the host).
+
+Fail-safe entities and thresholds are **not** part of initial setup — configure them after pairing via **Configure** on the integration card.
 
 ## Pair Solar with Home Assistant
 
@@ -90,7 +89,7 @@ Start the config flow:
 1. In the Solar dashboard (admin), open **Settings → Home Assistant connection** and generate a pairing code (or call `POST /api/pair/start` as admin).
 2. Note the one-time code (`XXXX-XXXX`, valid ~10 minutes).
 3. In the HA config flow, enter the host URL (or accept the Zeroconf-discovered host) and pairing code.
-4. Optionally select grid-charge entities and thresholds.
+4. After the integration is set up, open **Configure** to set fail-safe entities and thresholds.
 
 HA stores a minted `sol_c_…` client token in the config entry. Env `API_TOKEN` remains for scripts/MCP only — it is not used for integration setup.
 
@@ -113,7 +112,7 @@ Set **both** fail-safe entities or **neither**. Configuring only one raises a re
 
 ## How data updates
 
-The integration polls Solar every **60 seconds** (`/api/health`, `/api/system/update`, best-effort `/api/config`). While an update install is in progress, polling speeds up to about **2 seconds** for progress.
+The integration polls Solar every **60 seconds** (`/api/health`, `/api/system/update`, best-effort `/api/config`). While an update install is in progress, polling speeds up to about **5 seconds** for progress.
 
 ## Supported functions (entities)
 
@@ -149,6 +148,32 @@ When Solar reconnects (heartbeat fresh again), the latch clears and you see:
 | **Activity / Logbook** | “Fail-safe cleared: Solar connection restored” |
 
 Service calls to your configured grid-charge switch and max-current number also appear on those entities’ device pages. The integration does **not** turn off grid charge or restore the previous current when Solar reconnects — Solar resumes optimizer control when it is back online.
+
+## Event triggers
+
+The **Integration activity** event entity (`event.solar_ai_optimizer_integration_activity`) reports two event types via its `event_type` attribute. Use a **state trigger** on that attribute to react to either one directly, instead of (or in addition to) state-triggering on the binary sensors above:
+
+| Event type | Fires when | Event data |
+|---|---|---|
+| `failsafe_activated` | Fail-safe watchdog latches on (heartbeat stale beyond debounce) | `max_amps`, `grid_charge_switch`, `max_current_number` |
+| `failsafe_cleared` | Fail-safe latch clears (heartbeat fresh again) | `reason: heartbeat_restored` |
+
+```yaml
+automation:
+  - alias: Notify on fail-safe activation
+    triggers:
+      - trigger: state
+        entity_id: event.solar_ai_optimizer_integration_activity
+        attribute: event_type
+        to: failsafe_activated
+    actions:
+      - action: notify.persistent_notification
+        data:
+          title: Solar fail-safe activated
+          message: >
+            Grid charge enabled at {{ state_attr(trigger.entity_id, 'max_amps') }} A
+            (Solar unreachable).
+```
 
 ## Use cases
 

@@ -28,9 +28,7 @@ rules:
   docs-high-level-description: done
   docs-installation-instructions: done
   docs-removal-instructions: done
-  docs-triggers:
-    status: exempt
-    comment: No device/entity triggers are provided.
+  docs-triggers: done
   entity-event-setup: done
   entity-unique-id: done
   has-entity-name: done
@@ -43,7 +41,13 @@ rules:
   config-entry-unloading: done
   docs-configuration-parameters: done
   docs-installation-parameters: done
-  entity-unavailable: done
+  entity-unavailable:
+    status: done
+    comment: >
+      All coordinator-backed entities mark unavailable when the coordinator
+      fails. Exception: the failsafe_active binary sensor stays available
+      (on/off) even when Solar is unreachable, by design — the fail-safe
+      watchdog is a HA-local latch independent of the coordinator.
   integration-owner: done
   log-when-unavailable: done
   parallel-updates: done
@@ -54,7 +58,12 @@ rules:
   devices: done
   diagnostics: done
   discovery: done
-  discovery-update-info: done
+  discovery-update-info:
+    status: done
+    comment: >
+      Zeroconf discovery calls _abort_if_unique_id_configured(updates={CONF_HOST: host})
+      so a host address change is reflected automatically when the device is
+      re-discovered. SSL and other fields require explicit Reconfigure.
   docs-data-update: done
   docs-examples: done
   docs-known-limitations: done

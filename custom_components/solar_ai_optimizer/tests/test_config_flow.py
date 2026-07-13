@@ -43,16 +43,27 @@ def _http_error(status: int) -> ClientResponseError:
 
 
 def test_user_schema_pairing_only() -> None:
-    """USER_SCHEMA requires pairing code and has no access-token field."""
+    """USER_SCHEMA requires host + pair code only; fail-safe fields are options-only."""
+    from custom_components.solar_ai_optimizer.const import (
+        CONF_DEBOUNCE_SECONDS,
+        CONF_GRID_CHARGE_ENABLE,
+        CONF_MAX_GRID_CHARGE_CURRENT,
+        CONF_STALE_SECONDS,
+    )
+
     assert CONF_ACCESS_TOKEN not in USER_SCHEMA.schema
     assert CONF_PAIR_CODE in USER_SCHEMA.schema
     assert CONF_HOST in USER_SCHEMA.schema
+    assert CONF_GRID_CHARGE_ENABLE not in USER_SCHEMA.schema
+    assert CONF_MAX_GRID_CHARGE_CURRENT not in USER_SCHEMA.schema
+    assert CONF_STALE_SECONDS not in USER_SCHEMA.schema
+    assert CONF_DEBOUNCE_SECONDS not in USER_SCHEMA.schema
 
 
 async def test_user_flow_pairing(
     hass: HomeAssistant, mock_client: AsyncMock
 ) -> None:
-    """Test successful user flow with pairing code."""
+    """Successful user flow requires only host + pair code; options start empty."""
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": SOURCE_USER}
     )
@@ -64,10 +75,6 @@ async def test_user_flow_pairing(
             CONF_HOST: "http://192.168.1.10:8000/",
             CONF_VERIFY_SSL: True,
             CONF_PAIR_CODE: "ABCD-1234",
-            CONF_GRID_CHARGE_ENABLE: "switch.grid",
-            CONF_MAX_GRID_CHARGE_CURRENT: "number.amps",
-            "stale_seconds": 90,
-            "debounce_seconds": 60,
         },
     )
     assert result2["type"] is FlowResultType.CREATE_ENTRY
@@ -75,7 +82,9 @@ async def test_user_flow_pairing(
     assert result2["data"][CONF_ACCESS_TOKEN] == "sol_c_test_token"
     assert result2["data"][CONF_AUTH_MODE] == AUTH_MODE_TOKEN
     assert result2["data"][CONF_INSTALL_ID] == "install-abc12345"
-    assert result2["options"][CONF_GRID_CHARGE_ENABLE] == "switch.grid"
+    # Fail-safe fields are not set during initial setup
+    assert result2["options"] == {}
+    assert CONF_GRID_CHARGE_ENABLE not in result2["options"]
     mock_client.redeem_pair.assert_awaited()
     mock_client.get_me.assert_awaited()
 
@@ -431,6 +440,57 @@ async def test_reconfigure_wrong_install(
     )
     assert result2["type"] is FlowResultType.ABORT
     assert result2["reason"] == "wrong_install"
+
+
+async def test_reauth_supervisor_aborts_without_form(
+    hass: HomeAssistant, mock_client: AsyncMock
+) -> None:
+    """Supervisor auth_mode reauth aborts immediately — no pair-code form shown."""
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    from custom_components.solar_ai_optimizer.const import (
+        CONF_INSTALL_ID,
+        CONF_VERIFY_SSL,
+    )
+
+    sup_entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Solar AI Optimizer",
+        data={
+            CONF_HOST: "http://solar:8000",
+            CONF_VERIFY_SSL: True,
+            CONF_AUTH_MODE: AUTH_MODE_SUPERVISOR,
+            CONF_INSTALL_ID: "install-abc12345",
+        },
+        unique_id="install-abc12345",
+    )
+    sup_entry.add_to_hass(hass)
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": SOURCE_REAUTH,
+            "entry_id": sup_entry.entry_id,
+            "unique_id": sup_entry.unique_id,
+        },
+        data=sup_entry.data,
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "supervisor_managed"
+
+
+async def test_reconfigure_missing_install_id(
+    hass: HomeAssistant, mock_client: AsyncMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """Reconfigure aborts when health response omits install_id."""
+    mock_config_entry.add_to_hass(hass)
+    mock_client.get_health = AsyncMock(return_value={"version": "1.0.0"})
+    result = await mock_config_entry.start_reconfigure_flow(hass)
+    result2 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {CONF_HOST: "http://192.168.1.20:8000", CONF_VERIFY_SSL: True},
+    )
+    assert result2["type"] is FlowResultType.ABORT
+    assert result2["reason"] == "missing_install_id"
 
 
 async def test_options_flow(
