@@ -114,19 +114,17 @@
   "issues": {
     "failsafe_incomplete": {
       "title": "Fail-safe configuration incomplete",
-      "description": "Both a grid-charge enable switch and a max grid-charge current number entity are required for the fail-safe watchdog. Go to Settings → Devices & Services → Solar AI Optimizer → Configure → Options and set both entities, or clear both.",
       "fix_flow": {
         "step": {
           "confirm": {
             "title": "Open Configure → Options to fix fail-safe",
-            "description": "Go to **Settings → Devices & Services → Solar AI Optimizer**, click **Configure**, and open the **Options** step. Set **both** the grid-charge enable switch entity and the max grid-charge current number entity, or clear both — configuring only one is not allowed.\n\nAfter saving options with both entities set (or cleared), this issue will close automatically."
+            "description": "Both a grid-charge enable switch and a max grid-charge current number entity are required. Go to **Settings → Devices & Services → Solar AI Optimizer**, click **Configure**, and open the **Options** step. Set **both** entities, or clear both — configuring only one is not allowed.\n\nAfter saving options with both entities set (or cleared), this issue will close automatically."
           }
         }
       }
     },
     "failsafe_cleared_verify": {
       "title": "Fail-safe cleared — verify inverter settings",
-      "description": "The Solar AI heartbeat has recovered and the fail-safe latch has been cleared. Solar will reclaim inverter control automatically. Verify your inverter settings are correct and dismiss this notice once confirmed.",
       "fix_flow": {
         "step": {
           "confirm": {
@@ -138,7 +136,6 @@
     },
     "failsafe_amps_fallback": {
       "title": "Fail-safe used default grid-charge current",
-      "description": "The fail-safe activated but the max grid-charge current was not available from the Solar config at that time. The built-in default was used instead. Confirm Solar is reachable and check the Solar config (`max_grid_charge_a` in `/api/config`) to ensure the correct current limit is set.",
       "fix_flow": {
         "step": {
           "confirm": {
