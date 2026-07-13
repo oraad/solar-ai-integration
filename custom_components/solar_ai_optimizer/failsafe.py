@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, TypeVar
@@ -21,6 +22,11 @@ from .const import (
     DEFAULT_STALE_SECONDS,
 )
 from .helpers import max_grid_charge_amps, option_value, parse_pulse
+from .repairs import (
+    async_clear_amps_fallback_issue,
+    async_create_amps_fallback_issue,
+    async_create_failsafe_cleared_issue,
+)
 
 if TYPE_CHECKING:
     from . import SolarAiConfigEntry
@@ -55,6 +61,7 @@ class SolarFailsafeWatchdog:
         self._unhealthy_since: datetime | None = None
         self._latched = False
         self._unsubs: list[CALLBACK_TYPE] = []
+        self._apply_task: asyncio.Task[None] | None = None
 
     @property
     def is_latched(self) -> bool:
@@ -87,13 +94,21 @@ class SolarFailsafeWatchdog:
         self._unsubs.append(
             async_track_time_interval(self.hass, self._on_tick, _TICK)
         )
+        # Adopt any restored latch state before evaluating, so a still-unhealthy
+        # system stays latched across restart instead of re-firing apply.
+        failsafe_sensor = self._activity.failsafe_sensor
+        if failsafe_sensor is not None and failsafe_sensor.is_on:
+            self._latched = True
         self._evaluate()
 
     @callback
     def async_stop(self) -> None:
-        """Unsubscribe listeners."""
+        """Unsubscribe listeners and cancel any pending fail-safe task."""
         while self._unsubs:
             self._unsubs.pop()()
+        if self._apply_task is not None and not self._apply_task.done():
+            self._apply_task.cancel()
+        self._apply_task = None
 
     @callback
     def _on_coordinator_update(self) -> None:
@@ -119,6 +134,11 @@ class SolarFailsafeWatchdog:
 
     def _is_healthy(self) -> bool:
         data = self.coordinator.data or {}
+        heartbeat_configured = data.get("heartbeat_configured")
+        # If heartbeat is explicitly disabled on the Solar server, there is no
+        # signal to act on — treat the system as healthy to avoid false latches.
+        if heartbeat_configured is False:
+            return True
         pulse = parse_pulse(data.get("heartbeat_last_pulse"))
         if pulse is None:
             return False
@@ -129,6 +149,12 @@ class SolarFailsafeWatchdog:
         parsed = max_grid_charge_amps(self.coordinator.data)
         if parsed is not None:
             return parsed
+        _LOGGER.warning(
+            "Fail-safe: max_grid_charge_a not available from Solar config; "
+            "falling back to default %.0f A",
+            DEFAULT_MAX_GRID_CHARGE_A,
+        )
+        async_create_amps_fallback_issue(self.hass, self.entry.entry_id)
         return DEFAULT_MAX_GRID_CHARGE_A
 
     @callback
@@ -139,7 +165,15 @@ class SolarFailsafeWatchdog:
         if healthy:
             if self._latched:
                 _LOGGER.info("Solar heartbeat healthy again; clearing fail-safe latch")
+                if self._apply_task is not None and not self._apply_task.done():
+                    self._apply_task.cancel()
+                self._apply_task = None
                 self._activity.async_failsafe_cleared()
+                # Clear the amps-fallback issue (if raised) and create a
+                # verify notice so the user confirms inverter settings before
+                # Solar reclaims control.
+                async_clear_amps_fallback_issue(self.hass, self.entry.entry_id)
+                async_create_failsafe_cleared_issue(self.hass, self.entry.entry_id)
             self._latched = False
             self._unhealthy_since = None
             return
@@ -156,7 +190,7 @@ class SolarFailsafeWatchdog:
 
         self._latched = True
         self._activity.async_set_failsafe_active(True)
-        self.hass.async_create_task(self._async_apply_failsafe())
+        self._apply_task = self.hass.async_create_task(self._async_apply_failsafe())
 
     async def _async_apply_failsafe(self) -> None:
         switch_id = _option(self.entry, CONF_GRID_CHARGE_ENABLE)
@@ -176,6 +210,17 @@ class SolarFailsafeWatchdog:
                 {ATTR_ENTITY_ID: switch_id},
                 blocking=True,
             )
+        except Exception:  # noqa: BLE001
+            _LOGGER.exception(
+                "Fail-safe service calls failed for switch=%s number=%s",
+                switch_id,
+                number_id,
+            )
+            return
+        if self._apply_aborted():
+            return
+
+        try:
             await self.hass.services.async_call(
                 "number",
                 "set_value",
@@ -189,4 +234,14 @@ class SolarFailsafeWatchdog:
                 number_id,
             )
             return
+        if self._apply_aborted():
+            return
+
         self._activity.async_failsafe_activated(amps, switch_id, number_id)
+
+    def _apply_aborted(self) -> bool:
+        """Return True if the latch was cleared or the apply task was cancelled."""
+        if not self._latched:
+            return True
+        task = self._apply_task
+        return task is not None and task.cancelled()

@@ -6,7 +6,9 @@ import os
 from collections.abc import Mapping
 from typing import Any, cast
 
-from aiohttp import ClientError, ClientResponseError, ClientSession
+from aiohttp import ClientError, ClientResponseError, ClientSession, ClientTimeout
+
+_REQUEST_TIMEOUT = ClientTimeout(total=30)
 
 from .const import (
     AUTH_MODE_NONE,
@@ -83,6 +85,7 @@ class SolarAiClient:
                 json=json,
                 params=params,
                 ssl=self._verify_ssl,
+                timeout=_REQUEST_TIMEOUT,
             ) as response:
                 response.raise_for_status()
                 if response.status == 204:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from homeassistant.util import dt as dt_util
@@ -16,14 +16,16 @@ def parse_pulse(value: object) -> datetime | None:
         return None
     if isinstance(value, datetime):
         if value.tzinfo is None:
-            return dt_util.as_local(value)
+            # Solar timestamps are always UTC; tag directly without conversion.
+            return value.replace(tzinfo=timezone.utc)
         return value
     if isinstance(value, str):
         parsed = dt_util.parse_datetime(value)
         if parsed is None:
             return None
         if parsed.tzinfo is None:
-            return dt_util.as_local(parsed)
+            # Solar timestamps are always UTC; tag directly without conversion.
+            return parsed.replace(tzinfo=timezone.utc)
         return parsed
     return None
 

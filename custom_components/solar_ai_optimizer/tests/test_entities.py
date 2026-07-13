@@ -15,6 +15,7 @@ from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.solar_ai_optimizer.binary_sensor import (
+    SolarAiFailsafeBinarySensor,
     SolarAiHealthyBinarySensor,
 )
 from custom_components.solar_ai_optimizer.helpers import max_grid_charge_amps
@@ -110,6 +111,43 @@ async def test_healthy_stale_and_bad_options(
 
     coordinator.data = None  # type: ignore[assignment]
     assert entity.is_on is None
+
+
+async def test_healthy_heartbeat_not_configured(
+    hass: HomeAssistant, mock_client: AsyncMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """Healthy sensor is on when Solar reports heartbeat_configured is False."""
+    mock_config_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    coordinator = mock_config_entry.runtime_data.coordinator
+    entity = SolarAiHealthyBinarySensor(coordinator, mock_config_entry)
+    entity.hass = hass
+
+    coordinator.data = {
+        **(coordinator.data or {}),
+        "heartbeat_configured": False,
+        "heartbeat_last_pulse": None,
+    }
+    assert entity.is_on is True
+
+
+async def test_failsafe_sensor_always_available(
+    hass: HomeAssistant, mock_client: AsyncMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """Fail-safe latch sensor stays available even when the coordinator is unhealthy."""
+    mock_config_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    coordinator = mock_config_entry.runtime_data.coordinator
+    entity = SolarAiFailsafeBinarySensor(coordinator, mock_config_entry)
+    entity.hass = hass
+    assert entity.available is True
+
+    coordinator.last_update_success = False
+    assert entity.available is True
 
 
 async def test_update_entity_install(

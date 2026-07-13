@@ -75,7 +75,8 @@ async def test_setup_supervisor_auth(
 async def test_setup_missing_supervisor_token(
     hass: HomeAssistant, monkeypatch
 ) -> None:
-    """Supervisor auth without SUPERVISOR_TOKEN fails setup."""
+    """Supervisor auth without SUPERVISOR_TOKEN raises ConfigEntryNotReady (retryable)."""
+    from homeassistant.config_entries import ConfigEntryState
     from pytest_homeassistant_custom_component.common import MockConfigEntry
 
     from custom_components.solar_ai_optimizer.const import (
@@ -100,3 +101,4 @@ async def test_setup_missing_supervisor_token(
     )
     entry.add_to_hass(hass)
     assert not await hass.config_entries.async_setup(entry.entry_id)
+    assert entry.state is ConfigEntryState.SETUP_RETRY
